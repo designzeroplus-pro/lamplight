@@ -376,12 +376,22 @@ ipcMain.handle('stt:start', async (e, opts = {}) => {
   }
   const proc = spawn(bin, ['--locale', locale], { stdio: ['pipe', 'pipe', 'pipe'] });
   stt = proc;
+  // A small rolling log (userData/logs/stt.log) so transcription problems can be traced.
+  const logFile = path.join(app.getPath('userData'), 'logs', 'stt.log');
+  await fs.mkdir(path.dirname(logFile), { recursive: true });
+  try { if ((await fs.stat(logFile)).size > 512 * 1024) await fs.rename(logFile, `${logFile}.1`); } catch {}
+  const log = (msg) => fsSync.appendFile(logFile, `${new Date().toISOString()} ${msg}\n`, () => {});
+  log(`start locale=${locale}`);
   readline.createInterface({ input: proc.stdout }).on('line', (line) => {
-    try { e.sender.send('stt:event', JSON.parse(line)); } catch { /* not JSON, ignore */ }
+    let ev;
+    try { ev = JSON.parse(line); } catch { return; }
+    if (ev.type !== 'partial') log(line);
+    if (ev.type !== 'log') e.sender.send('stt:event', ev);
   });
-  proc.stderr.on('data', (d) => console.error('[stt]', String(d).trim()));
+  proc.stderr.on('data', (d) => log(`stderr ${String(d).trim()}`));
   proc.stdin.on('error', () => {});
-  proc.on('exit', (code) => {
+  proc.on('exit', (code, signal) => {
+    log(`exit code=${code} signal=${signal}`);
     if (stt === proc) stt = null;
     if (!e.sender.isDestroyed()) e.sender.send('stt:event', { type: 'exit', code });
   });

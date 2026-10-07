@@ -156,6 +156,22 @@ final class LiveTranscriber {
     }
   }
 
+  var lastRestart = Date.distantPast
+
+  // A segment that stopped on its own (error, or a final we didn't ask for)
+  // must be replaced, or later audio would go to a dead request.
+  // Must run on `queue`.
+  func restartIfCurrent(_ id: Int) {
+    guard id == seg, !ending else { return }
+    let wait = max(0, 1 - Date().timeIntervalSince(lastRestart))  // at most once a second
+    lastRestart = Date().addingTimeInterval(wait)
+    queue.asyncAfter(deadline: .now() + wait) { [weak self] in
+      guard let self, id == self.seg, !self.ending else { return }
+      self.request?.endAudio()
+      self.beginSegment()
+    }
+  }
+
   // Must run on `queue`.
   func handle(id: Int, result: SFSpeechRecognitionResult?, error: Error?) {
     if let result {
@@ -168,9 +184,14 @@ final class LiveTranscriber {
         }
         if !result.isFinal && !text.isEmpty { emit(["type": "partial", "seg": id, "text": text]) }
       }
-      if result.isFinal { finish(id) }
+      if result.isFinal { finish(id); restartIfCurrent(id) }
     }
-    if error != nil { finish(id) }  // e.g. "no speech detected": keep whatever we heard
+    if let error {
+      let ns = error as NSError
+      emit(["type": "log", "seg": id, "message": "\(ns.domain) \(ns.code): \(ns.localizedDescription)"])
+      finish(id)  // e.g. "no speech detected": keep whatever we heard
+      restartIfCurrent(id)
+    }
   }
 
   // Must run on `queue`.
