@@ -428,6 +428,34 @@ ipcMain.handle('stt:stop', () => new Promise((resolve) => {
 
 app.on('will-quit', () => stt?.kill());
 
+/* Whole-recording transcription after a meeting: the renderer sends 16 kHz
+ * PCM (level-matched) plus the speech segments it found; the helper
+ * recognizes each segment in file mode. */
+let sttFileBusy = false;
+ipcMain.handle('stt:file', async (e, { wav, segments, locale: loc }) => {
+  if (sttFileBusy) return { error: 'busy' };
+  sttFileBusy = true;
+  const locale = /^[a-z]{2}(-[A-Z]{2})?$/.test(loc || '') ? loc : 'ko-KR';
+  const base = path.join(app.getPath('temp'), `lamplight-${process.pid}-${Date.now()}`);
+  const send = (ev) => { if (!e.sender.isDestroyed()) e.sender.send('stt:file-event', ev); };
+  try {
+    await fs.writeFile(`${base}.wav`, Buffer.from(wav));
+    await fs.writeFile(`${base}.json`, JSON.stringify(segments));
+    const proc = spawn(sttBinary(), ['--file', `${base}.wav`, '--segments', `${base}.json`, '--locale', locale], { stdio: ['ignore', 'pipe', 'pipe'] });
+    readline.createInterface({ input: proc.stdout }).on('line', (line) => {
+      try { send(JSON.parse(line)); } catch {}
+    });
+    const code = await new Promise((r) => proc.on('exit', r));
+    return { ok: code === 0 };
+  } catch (err) {
+    return { error: String(err.message || err) };
+  } finally {
+    sttFileBusy = false;
+    fs.rm(`${base}.wav`, { force: true }).catch(() => {});
+    fs.rm(`${base}.json`, { force: true }).catch(() => {});
+  }
+});
+
 function runHelper(flag, timeoutMs) {
   return new Promise((resolve) => {
     const proc = spawn(sttBinary(), [flag], { stdio: ['ignore', 'pipe', 'ignore'] });

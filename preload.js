@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('memo', {
   sttStart: (opts) => ipcRenderer.invoke('stt:start', opts),
   sttAudio: (chunk) => ipcRenderer.send('stt:audio', chunk),
   sttDiag: (msg) => ipcRenderer.send('stt:diag', msg),
+  sttFile: (job) => ipcRenderer.invoke('stt:file', job),
+  onSttFile: (cb) => ipcRenderer.on('stt:file-event', (_e, ev) => cb(ev)),
   sttStop: () => ipcRenderer.invoke('stt:stop'),
   onStt: (cb) => ipcRenderer.on('stt:event', (_e, ev) => cb(ev)),
 

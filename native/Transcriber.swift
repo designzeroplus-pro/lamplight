@@ -289,6 +289,64 @@ final class LiveTranscriber {
 
 var engine: LiveTranscriber?
 
+/* ── File mode ──────────────────────────────────────────────────────────────
+ *   lamplight-transcriber --file audio.wav --segments segments.json [--locale ko-KR]
+ * audio.wav: 16 kHz mono Int16 (prepared and level-matched by the app).
+ * segments.json: [[startSec, endSec], …] — the stretches that contain speech.
+ * Each segment is recognized on its own (no wall-clock pauses involved),
+ * emitting {"type":"final","start":s,"text":…} and {"type":"progress",…}. */
+func argValue(_ name: String) -> String? {
+  guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
+  return args[i + 1]
+}
+
+func transcribeFile(_ recognizer: SFSpeechRecognizer, wav: String, segmentsPath: String) {
+  guard let data = FileManager.default.contents(atPath: wav), data.count > 44,
+        let segData = FileManager.default.contents(atPath: segmentsPath),
+        let segments = try? JSONSerialization.jsonObject(with: segData) as? [[Double]] else {
+    emit(["type": "error", "code": "file", "message": "could not read input"])
+    exit(5)
+  }
+  let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+  let samples: [Float] = data.dropFirst(44).withUnsafeBytes { raw in
+    raw.bindMemory(to: Int16.self).map { Float(Int16(littleEndian: $0)) / 32768 }
+  }
+  for (index, seg) in segments.enumerated() {
+    guard seg.count == 2 else { continue }
+    let a = max(0, Int(seg[0] * 16_000))
+    let b = min(samples.count, Int(seg[1] * 16_000))
+    guard b - a > 1_600, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(b - a)) else { continue }
+    buffer.frameLength = AVAudioFrameCount(b - a)
+    samples.withUnsafeBufferPointer { src in
+      buffer.floatChannelData![0].update(from: src.baseAddress! + a, count: b - a)
+    }
+    let req = SFSpeechAudioBufferRecognitionRequest()
+    req.shouldReportPartialResults = false
+    req.taskHint = .dictation
+    if recognizer.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = true }
+    if #available(macOS 13, *) { req.addsPunctuation = true }
+    req.append(buffer)
+    req.endAudio()
+
+    let done = DispatchSemaphore(value: 0)
+    var text = ""
+    var finished = false
+    let lock = NSLock()
+    let task = recognizer.recognitionTask(with: req) { result, error in
+      lock.lock(); defer { lock.unlock() }
+      if finished { return }
+      if let result { text = result.bestTranscription.formattedString }
+      if result?.isFinal == true || error != nil { finished = true; done.signal() }
+    }
+    if done.wait(timeout: .now() + 90) == .timedOut { task.cancel() }
+    let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !clean.isEmpty { emit(["type": "final", "start": seg[0], "end": seg[1], "text": clean]) }
+    emit(["type": "progress", "done": index + 1, "total": segments.count])
+  }
+  emit(["type": "done"])
+  exit(0)
+}
+
 SFSpeechRecognizer.requestAuthorization { status in
   guard status == .authorized else {
     emit(["type": "error", "code": "denied", "message": "speech recognition \(statusName(status))"])
@@ -301,6 +359,12 @@ SFSpeechRecognizer.requestAuthorization { status in
   guard e.recognizer.isAvailable else {
     emit(["type": "error", "code": "unavailable", "message": "recognizer unavailable"])
     exit(4)
+  }
+  if let wav = argValue("--file"), let segs = argValue("--segments") {
+    emit(["type": "ready", "onDevice": e.onDevice, "locale": localeId, "mode": "file"])
+    // Recognition callbacks need the main queue free; work on a background thread.
+    Thread { transcribeFile(e.recognizer, wav: wav, segmentsPath: segs) }.start()
+    return
   }
   engine = e
   emit(["type": "ready", "onDevice": e.onDevice && !e.preferServer, "locale": localeId])

@@ -37,7 +37,7 @@
     intensity: 150, spread: 112, reach: 120,
     lampOn: true, theme: 'dark', sound: true, volume: 0.7, sidebar: true, looseCollapsed: false, transcribe: true,
     fontSize: 17, railRatio: 60, readingLight: true, soundProfile: 'classic', sttLocale: 'ko-KR',
-    autoSummary: false, motion: 'system', onboarded: false, aiProvider: 'claude',
+    autoSummary: false, motion: 'system', onboarded: false, aiProvider: 'claude', retranscribe: true,
   };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
   const persist = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {} };
@@ -1097,11 +1097,12 @@
       }
       renderList();
       toast(`녹음을 저장했습니다 · ${fmtTime(res.duration)}`);
-      if (settings.autoSummary) {
-        const noteId = recNoteId;
+      const noteId = recNoteId;
+      if (settings.retranscribe !== false || settings.autoSummary) {
         (async () => {
           while (typeQueue.length || typing) await sleep(300);
-          if (current?.id === noteId && !summarizing) summarize();
+          if (settings.retranscribe !== false) await retranscribe(noteId, entry);
+          if (settings.autoSummary && current?.id === noteId && !summarizing) summarize();
         })();
       }
     } catch (err) {
@@ -1110,6 +1111,127 @@
     } finally {
       recNoteId = null;
       recFile = null;
+    }
+  }
+
+  /* ───────── whole-recording transcription ─────────
+   * After a meeting, the full recording is transcribed again: decoded to
+   * 16 kHz, cut into speech segments by a simple energy detector, each segment
+   * brought to a steady level (quiet voices lifted), then recognized one by
+   * one. The result goes under its own heading in transcript ink. */
+  let retranscribing = false;
+  let fileJob = null; // { finals, onProgress }
+
+  window.memo.onSttFile((ev) => {
+    if (!fileJob) return;
+    if (ev.type === 'final') fileJob.finals.push(ev);
+    else if (ev.type === 'progress') fileJob.onProgress(ev.done, ev.total);
+    else if (ev.type === 'error') fileJob.error = ev.code;
+  });
+
+  function findSpeech(pcm, rate) {
+    const hop = Math.round(rate * 0.03);
+    const n = Math.floor(pcm.length / hop);
+    const rms = new Float32Array(n);
+    for (let f = 0; f < n; f++) {
+      let s = 0;
+      for (let i = f * hop; i < (f + 1) * hop; i++) s += pcm[i] * pcm[i];
+      rms[f] = Math.sqrt(s / hop);
+    }
+    const sorted = Array.from(rms).sort((x, y) => x - y);
+    const floor = sorted[Math.floor(n * 0.2)] || 0;
+    const thr = Math.max(floor * 2.5, 0.003);
+    const segs = [];
+    let start = -1;
+    let quiet = 0;
+    for (let f = 0; f < n; f++) {
+      if (rms[f] > thr) {
+        if (start < 0) start = f;
+        quiet = 0;
+      } else if (start >= 0 && ++quiet > 23) { // ~0.7 s of quiet ends a segment
+        segs.push([start, f - quiet]);
+        start = -1;
+        quiet = 0;
+      }
+    }
+    if (start >= 0) segs.push([start, n - 1]);
+    const out = [];
+    for (const [a, b] of segs) {
+      let s0 = Math.max(0, a * 0.03 - 0.3);
+      const s1 = Math.min(pcm.length / rate, (b + 1) * 0.03 + 0.3);
+      if (s1 - s0 < 0.4) continue;
+      while (s1 - s0 > 45) { out.push([s0, s0 + 45]); s0 += 45; } // stay well under recognizer limits
+      out.push([s0, s1]);
+    }
+    return out;
+  }
+
+  function levelSegments(pcm, rate, segs) {
+    for (const [a, b] of segs) {
+      const i0 = Math.floor(a * rate);
+      const i1 = Math.min(pcm.length, Math.floor(b * rate));
+      let s = 0;
+      for (let i = i0; i < i1; i++) s += pcm[i] * pcm[i];
+      const r = Math.sqrt(s / Math.max(1, i1 - i0));
+      const gain = Math.min(12, Math.max(1, 0.1 / Math.max(r, 1e-4)));
+      if (gain > 1.01) for (let i = i0; i < i1; i++) pcm[i] = Math.tanh(pcm[i] * gain);
+    }
+  }
+
+  function toWav(pcm, rate) {
+    const buf = new ArrayBuffer(44 + pcm.length * 2);
+    const v = new DataView(buf);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); str(8, 'WAVE');
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+    for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+    return new Uint8Array(buf);
+  }
+
+  async function retranscribe(noteId, rec) {
+    if (!rec || retranscribing) return;
+    retranscribing = true;
+    showCaption('녹음 전체를 다시 받아쓰고 있어요…', true);
+    try {
+      const bytes = await window.memo.readAudio(noteId, rec.file);
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      const decoded = await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+      ctx.close();
+      const pcm = new Float32Array(decoded.getChannelData(0));
+      const segs = findSpeech(pcm, 16000);
+      if (!segs.length) { toast('녹음에서 말소리를 찾지 못했어요'); return; }
+      levelSegments(pcm, 16000, segs);
+      fileJob = { finals: [], onProgress: (d, t) => showCaption(`녹음 전체를 다시 받아쓰는 중… ${Math.round((d / t) * 100)}%`, true) };
+      const res = await window.memo.sttFile({ wav: toWav(pcm, 16000), segments: segs, locale: settings.sttLocale });
+      const finals = fileJob.finals;
+      if (res.error === 'busy') { toast('이미 다른 녹음을 받아쓰고 있어요'); return; }
+      if (fileJob.error === 'denied') { toast('음성 인식 권한이 필요합니다 · 시스템 설정 › 개인정보 보호 및 보안 › 음성 인식', 5200); return; }
+      if (!finals.length) { toast('받아 적을 수 있는 말소리가 없었어요 · 마이크 가까이에서 말해 주세요', 5000); return; }
+
+      const recs = current?.id === noteId ? current.recordings : [];
+      const idx = recs.findIndex((r) => r.file === rec.file);
+      const head = `${TX}──────── 전체 받아쓰기${idx >= 0 ? ` · 녹음 ${idx + 1}` : ''} ────────`;
+      const lines = finals.map((f) => `${TX}[${fmtTime(f.start)}] ${f.text}`);
+      const block = `\n${head}\n${lines.join('\n')}\n`;
+      if (current?.id === noteId) {
+        unfold();
+        const v = input.value;
+        input.setRangeText((v && !v.endsWith('\n') ? '\n' : '') + block, v.length, v.length, 'preserve');
+        editor.sync();
+        follow = true;
+      } else {
+        await appendToStoredNote(noteId, block);
+      }
+      toast(`전체 받아쓰기를 마쳤어요 · ${finals.length}문장`);
+    } catch (err) {
+      console.error(err);
+      toast('전체 받아쓰기를 하지 못했어요');
+    } finally {
+      fileJob = null;
+      retranscribing = false;
+      if (!body.classList.contains('transcribing') && !summarizing) hideCaption();
     }
   }
 
@@ -1299,6 +1421,7 @@
     const pick = await window.memo.contextMenu([
       ...recs.map((r, i) => ({ id: `sel:${r.file}`, label: recordingLabel(r, i), checked: r.file === selectedFile })).reverse(),
       { type: 'separator' },
+      { id: 'retranscribe', label: '이 녹음 전체 다시 받아쓰기' },
       { id: 'reveal', label: 'Finder에서 보기' },
       { id: 'delete', label: '이 녹음 삭제…' },
     ]);
@@ -1309,6 +1432,8 @@
         selectedFile = pick.slice(4);
         syncPlayerIdle();
       }
+    } else if (pick === 'retranscribe') {
+      retranscribe(current.id, selectedRecording());
     } else if (pick === 'reveal') {
       window.memo.revealAudio(current.id, selectedFile);
     } else if (pick === 'delete') {
@@ -2040,6 +2165,7 @@
     $('vVolume').textContent = Math.round(settings.volume * 100);
     $('setLocale').value = settings.sttLocale;
     $('setAutoSummary').checked = !!settings.autoSummary;
+    $('setRetranscribe').checked = settings.retranscribe !== false;
     $('setMotion').value = settings.motion;
     for (const b of $('setProfile').children) {
       const on = b.dataset.v === settings.soundProfile;
@@ -2064,6 +2190,7 @@
   $('setVolume').addEventListener('change', () => sound.play('char'));
   onSetting('setLocale', 'change', (el) => { settings.sttLocale = el.value; });
   onSetting('setAutoSummary', 'change', (el) => { settings.autoSummary = el.checked; });
+  onSetting('setRetranscribe', 'change', (el) => { settings.retranscribe = el.checked; });
   onSetting('setMotion', 'change', (el) => { settings.motion = el.value; applyMotion(); });
   $('setProfile').addEventListener('click', (e) => {
     const v = e.target.dataset?.v;
