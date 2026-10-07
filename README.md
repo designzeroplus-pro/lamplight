@@ -52,13 +52,13 @@ npm run dist       # arm64 · Intel DMG (ad-hoc 서명)
 macOS는 서명된 앱만 스스로 교체할 수 있어서, 앱은 실행할 때(그리고 6시간마다) GitHub의 최신 릴리스를 확인해
 새 버전이 있으면 알려주고 이 Mac에 맞는 DMG를 내려받게 해줍니다. 앱 메뉴 › 업데이트 확인…으로 직접 확인할 수도 있습니다.
 
-새 버전 내보내기:
+새 버전 내보내기 (빌드 폴더는 `.noindex`로 끝나서 Spotlight·Launchpad에 사본이 나타나지 않습니다):
 
 ```bash
 npm version patch --no-git-tag-version   # package.json 버전 올리기 (예: 0.1.0 → 0.1.1)
-npm run dist                              # dist/에 arm64 · Intel DMG (ad-hoc 서명)
+npm run dist                              # dist.noindex/에 arm64 · Intel DMG (ad-hoc 서명)
 git commit -am "Release v0.1.1" && git push
-gh release create v0.1.1 dist/Lamplight-0.1.1-arm64.dmg dist/Lamplight-0.1.1.dmg --title "Lamplight 0.1.1" --notes "변경 사항"
+gh release create v0.1.1 dist.noindex/Lamplight-0.1.1-arm64.dmg dist.noindex/Lamplight-0.1.1.dmg --title "Lamplight 0.1.1" --notes "변경 사항"
 ```
 
 나중에 Apple Developer ID로 서명·공증하려면 인증서를 키체인에 설치하고 `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,

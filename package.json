@@ -26,6 +26,9 @@
   "build": {
     "appId": "com.lamplight.notes",
     "productName": "Lamplight",
+    "directories": {
+      "output": "dist.noindex"
+    },
     "files": [
       "main.js",
       "preload.js",
