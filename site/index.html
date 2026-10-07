@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lamplight — 램프 아래에서 쓰는 노트</title>
+  <meta name="description" content="타자기 감성의 macOS 노트 앱. 어두운 방의 작은 램프 아래에서 한 글자씩 쓰고, PDF · Markdown으로 내보내거나 AI로 회의록 · 보고서 · 이메일로 다듬으세요." />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #fbf8f0;
+      --bg-2: #f3eee3;
+      --card: #ffffff;
+      --text: #1b1916;
+      --muted: #6e675b;
+      --faint: #a39a8b;
+      --line: rgba(40, 30, 15, 0.1);
+      --btn: #1b1916;
+      --btn-text: #fbf8f0;
+      --accent: #b5652a;
+      --red-ink: #a5301f;
+      --mark: rgba(255, 196, 110, 0.45);
+      --shadow: 0 1px 2px rgba(60, 40, 10, .06), 0 12px 40px -12px rgba(60, 40, 10, .18);
+
+      /* the app window is always night */
+      --desk: #0d0c0b;
+      --side: #121110;
+      --paper: #dad6cd;
+      --ink: #1b1916;
+      --ui: #cfc8bc;
+      --dim: #8a8377;
+
+      --type: 'Courier Prime', 'Nanum Gothic Coding', ui-monospace, Menlo, monospace;
+      --hand: 'Nanum Pen Script', cursive;
+      --sans: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #12110f;
+        --bg-2: #1a1815;
+        --card: #1e1c19;
+        --text: #ebe4d6;
+        --muted: #a39a8b;
+        --faint: #6e675b;
+        --line: rgba(255, 240, 220, 0.09);
+        --btn: #ebe4d6;
+        --btn-text: #12110f;
+        --accent: #e3a566;
+        --red-ink: #d0644f;
+        --mark: rgba(227, 165, 102, 0.3);
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 16px 40px -12px rgba(0,0,0,.6);
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #12110f; --bg-2: #1a1815; --card: #1e1c19; --text: #ebe4d6; --muted: #a39a8b; --faint: #6e675b;
+      --line: rgba(255, 240, 220, 0.09); --btn: #ebe4d6; --btn-text: #12110f; --accent: #e3a566; --red-ink: #d0644f;
+      --mark: rgba(227, 165, 102, 0.3); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 16px 40px -12px rgba(0,0,0,.6);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.65 var(--sans);
+      -webkit-font-smoothing: antialiased;
+      word-break: keep-all;
+      overflow-x: hidden;
+    }
+    a { color: inherit; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+    section { padding: 112px 0; }
+    .center { text-align: center; }
+
+    /* ───── type ───── */
+    .hand { font-family: var(--hand); font-weight: 400; letter-spacing: -0.01em; }
+    h1.hand { font-size: clamp(54px, 9vw, 96px); line-height: 1.05; margin: 0 0 22px; }
+    h2.hand { font-size: clamp(40px, 6vw, 58px); line-height: 1.1; margin: 0 0 14px; }
+    h2.hand em { font-style: normal; color: var(--accent); }
+    .lede { color: var(--muted); font-size: 17px; max-width: 520px; margin: 0 auto; }
+
+    /* ───── nav ───── */
+    header.top {
+      position: sticky; top: 0; z-index: 20;
+      background: color-mix(in srgb, var(--bg) 82%, transparent);
+      backdrop-filter: saturate(1.4) blur(12px);
+      -webkit-backdrop-filter: saturate(1.4) blur(12px);
+    }
+    header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--type); font-weight: 700; font-size: 21px; letter-spacing: -0.02em; }
+    .brand img { width: 30px; height: 30px; }
+    nav.links { display: flex; gap: 26px; font-size: 14px; color: var(--muted); }
+    nav.links a { text-decoration: none; }
+    nav.links a:hover { color: var(--text); }
+    .nav-cta { font-size: 13px; padding: 8px 14px; }
+    @media (max-width: 720px) { nav.links { display: none; } }
+
+    /* ───── buttons ───── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: var(--btn); color: var(--btn-text);
+      border: 0; border-radius: 10px; padding: 13px 20px;
+      font: 500 15px/1 var(--sans); text-decoration: none; cursor: pointer;
+      transition: transform .15s ease, opacity .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); opacity: .92; }
+    .btn svg { width: 16px; height: 16px; flex: none; }
+    .btn.ghost { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+
+    .dl { position: relative; display: inline-flex; }
+    .dl .btn.main { border-radius: 10px 0 0 10px; padding-right: 16px; }
+    .dl .btn.more { border-radius: 0 10px 10px 0; padding: 13px 12px; border-left: 1px solid color-mix(in srgb, var(--btn-text) 18%, transparent); }
+    .dl-menu {
+      position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      min-width: 240px; background: var(--card); border-radius: 12px; padding: 6px;
+      box-shadow: var(--shadow), 0 0 0 1px var(--line); text-align: left;
+      display: none; z-index: 5;
+    }
+    .dl.open .dl-menu { display: block; }
+    .dl-menu a { display: block; padding: 10px 12px; border-radius: 8px; text-decoration: none; font-size: 14px; }
+    .dl-menu a small { display: block; color: var(--muted); font-size: 12px; }
+    .dl-menu a:hover { background: var(--bg-2); }
+    .fineprint { margin-top: 14px; font-size: 13px; color: var(--faint); }
+
+    /* ───── hero ───── */
+    .hero { padding: 72px 0 40px; text-align: center; }
+    .hero .lede { margin-bottom: 30px; }
+
+    .window {
+      position: relative; margin: 64px auto 0; max-width: 820px;
+      border-radius: 14px; overflow: hidden; text-align: left;
+      background: var(--desk);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 40px 90px -30px rgba(40, 25, 5, .55), 0 0 140px -40px rgba(255, 190, 110, .35);
+    }
+    .titlebar { height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--side); border-bottom: 1px solid rgba(255,255,255,.05); }
+    .titlebar i { width: 12px; height: 12px; border-radius: 50%; background: #3a3633; }
+    .titlebar i:nth-child(1) { background: #ec6a5e; } .titlebar i:nth-child(2) { background: #f4bf4f; } .titlebar i:nth-child(3) { background: #61c554; }
+    .titlebar .tb-title { flex: 1; text-align: center; color: var(--dim); font: 12px var(--sans); margin-right: 52px; }
+    .titlebar button { background: none; border: 0; color: var(--dim); cursor: pointer; padding: 4px; display: flex; }
+    .titlebar button:hover { color: var(--ui); }
+    .titlebar button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+
+    .room { position: relative; height: 470px; overflow: hidden; }
+    .sheet {
+      position: absolute; left: 50%; top: 34px; transform: translateX(-50%);
+      width: min(520px, 86%); height: 560px;
+      background: var(--paper); border-radius: 3px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.6);
+      padding: 38px 44px; color: var(--ink);
+      font: 15px/1.9 var(--type);
+    }
+    .sheet .s-title { font-weight: 700; font-size: 19px; margin-bottom: 2px; }
+    .sheet .s-meta { font-size: 12px; color: rgba(27,25,22,.5); }
+    .sheet .s-rule { height: 1px; background: rgba(27,25,22,.15); margin: 14px 0 16px; }
+    .sheet .typed { white-space: pre-wrap; min-height: 200px; }
+    .sheet .typed .r { color: #a5301f; }
+    .caret { display: inline-block; width: 2px; height: 1.05em; background: #c4622d; vertical-align: -2px; margin-left: 1px; animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* the lamp: darkness everywhere except a warm cone */
+    .shade {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 120% at var(--lx, 58%) 96%, rgba(255, 214, 160, .12) 0%, rgba(13,12,11,0) 45%, rgba(13,12,11,.7) 78%, rgba(13,12,11,.94) 100%);
+      transition: background .3s;
+    }
+    .rail { position: absolute; left: 6%; right: 6%; bottom: 26px; height: 8px; border-radius: 4px; background: linear-gradient(#46423e, #121110 55%, #262422); }
+    .lamp { position: absolute; bottom: 14px; left: var(--lx, 58%); transform: translateX(-50%); width: 104px; height: 64px; transition: left .3s; }
+    .lamp svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+    .polish {
+      position: absolute; right: 18px; bottom: 76px;
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(30,28,26,.72); color: var(--ui);
+      border: 1px solid rgba(255,255,255,.09); border-radius: 999px;
+      padding: 8px 14px; font: 13px var(--sans);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      opacity: 0; transform: translateY(6px); transition: opacity .4s, transform .4s;
+    }
+    .polish.show { opacity: 1; transform: none; }
+    .polish svg { width: 15px; height: 15px; fill: none; stroke: #e3a566; stroke-width: 1.4; stroke-linejoin: round; }
+    .polish .dots::after { content: ''; animation: dots 1.2s steps(4) infinite; }
+    @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+    .doc { display: none; font: 14px/1.75 var(--sans); }
+    .doc h4 { font: 700 15px/1.4 var(--sans); margin: 0 0 6px; }
+    .doc ul { margin: 0 0 14px; padding-left: 18px; }
+    .doc li { margin: 2px 0; opacity: 0; transform: translateY(4px); transition: opacity .45s, transform .45s; }
+    .doc li.in, .doc h4.in { opacity: 1; transform: none; }
+    .doc h4 { opacity: 0; transition: opacity .45s; }
+    .sheet.polished .typed, .sheet.polished .caret { display: none; }
+    .sheet.polished .doc { display: block; }
+
+    .handnote { font-family: var(--hand); font-size: 26px; color: var(--muted); transform: rotate(-4deg); display: inline-block; }
+    .hero-notes { display: flex; justify-content: space-between; max-width: 820px; margin: 18px auto 0; padding: 0 8px; }
+    .hero-notes .handnote:last-child { transform: rotate(3deg); }
+    @media (max-width: 640px) {
+      .room { height: 400px; }
+      .sheet { padding: 26px 22px; font-size: 13px; }
+      .hero-notes { display: none; }
+    }
+
+    /* ───── uses marquee ───── */
+    .uses { padding: 48px 0 0; overflow: hidden; }
+    .uses p { text-align: center; margin: 0 0 14px; }
+    .marquee { display: flex; gap: 46px; width: max-content; animation: slide 40s linear infinite; font-family: var(--type); color: var(--faint); font-size: 17px; }
+    .marquee span::before { content: '✎ '; color: var(--accent); }
+    @keyframes slide { to { transform: translateX(-50%); } }
+    .uses .mask { -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); }
+
+    /* ───── features ───── */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 44px; margin-top: 64px; text-align: center; }
+    .feature .art { height: 150px; display: grid; place-items: center; margin-bottom: 18px; }
+    .feature h3 { font-size: 17px; margin: 0 0 6px; }
+    .feature p { margin: 0; color: var(--muted); font-size: 14.5px; }
+    @media (max-width: 820px) { .features { grid-template-columns: 1fr; gap: 56px; } }
+
+    .mini-lamp { position: relative; width: 210px; height: 130px; border-radius: 12px; background: #0d0c0b; overflow: hidden; box-shadow: var(--shadow); }
+    .mini-lamp .p { position: absolute; left: 36px; right: 36px; top: 18px; bottom: -10px; background: #dad6cd; border-radius: 2px; padding: 14px 16px; }
+    .mini-lamp .p b { display: block; height: 6px; border-radius: 3px; background: #2a2622; margin-bottom: 9px; }
+    .mini-lamp .p b:nth-child(1) { width: 60%; height: 8px; } .mini-lamp .p b:nth-child(2) { width: 85%; background: #a5301f; } .mini-lamp .p b:nth-child(3) { width: 72%; } .mini-lamp .p b:nth-child(4) { width: 50%; }
+    .mini-lamp .s { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 85% at 55% 100%, transparent 30%, rgba(13,12,11,.9) 75%); animation: breathe 5s ease-in-out infinite; }
+    .mini-lamp .bulb { position: absolute; bottom: 6px; left: 50%; width: 40px; height: 4px; margin-left: -12px; border-radius: 2px; background: #fff4dc; box-shadow: 0 0 14px 4px rgba(255, 207, 135, .7); }
+    @keyframes breathe { 50% { opacity: .82; } }
+
+    .keys { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; width: 290px; }
+    .key {
+      width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+      font: 700 15px var(--type); color: #2a2622;
+      background: radial-gradient(circle at 50% 35%, #fbf8f0, #d9d2c3);
+      box-shadow: 0 0 0 3px #2a2622, 0 5px 0 3px #121110, 0 8px 14px rgba(0,0,0,.25);
+      transition: transform .08s, box-shadow .08s;
+    }
+    .key.down { transform: translateY(3px); box-shadow: 0 0 0 3px #2a2622, 0 2px 0 3px #121110, 0 3px 6px rgba(0,0,0,.25); }
+
+    .files { position: relative; width: 220px; height: 130px; }
+    .file { position: absolute; width: 74px; height: 96px; border-radius: 6px; background: var(--card); box-shadow: var(--shadow), 0 0 0 1px var(--line); padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+    .file b { height: 4px; border-radius: 2px; background: var(--line); display: block; }
+    .file span { margin-top: auto; font: 700 11px var(--type); color: var(--muted); }
+    .file.f1 { left: 6px; top: 22px; transform: rotate(-8deg); }
+    .file.f2 { left: 73px; top: 6px; z-index: 2; }
+    .file.f2 span { color: var(--red-ink); }
+    .file.f3 { left: 140px; top: 22px; transform: rotate(8deg); }
+    .mac-badge { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); z-index: 3; background: var(--btn); color: var(--btn-text); font: 600 11px var(--sans); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+
+    /* ───── polish demo ───── */
+    .polish-section { background: var(--bg-2); }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 40px 0 28px; }
+    .tab { border: 0; background: transparent; color: var(--muted); font: 500 14px var(--sans); padding: 8px 14px; border-radius: 999px; cursor: pointer; box-shadow: inset 0 0 0 1px var(--line); }
+    .tab:hover { color: var(--text); }
+    .tab[aria-selected="true"] { background: var(--btn); color: var(--btn-text); box-shadow: none; }
+    .compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: stretch; }
+    .pane { text-align: left; background: var(--card); border-radius: 14px; padding: 26px 28px; box-shadow: var(--shadow); min-height: 340px; }
+    .pane .label { font: 600 12px var(--sans); color: var(--faint); letter-spacing: .06em; margin-bottom: 14px; }
+    .pane.raw { font: 14px/1.95 var(--type); white-space: pre-wrap; }
+    .pane.raw .r { color: var(--red-ink); }
+    .pane.out { font-size: 14.5px; line-height: 1.75; }
+    .pane.out h4 { font-size: 16px; margin: 0 0 8px; }
+    .pane.out h5 { font-size: 14px; margin: 14px 0 4px; }
+    .pane.out ul, .pane.out ol { margin: 0; padding-left: 20px; }
+    .pane.out p { margin: 0 0 8px; }
+    .pane.out mark { background: var(--mark); color: inherit; padding: 0 2px; border-radius: 3px; }
+    .pane.out .fade { animation: fadein .45s ease both; }
+    @keyframes fadein { from { opacity: 0; transform: translateY(4px); } }
+    .arrow { display: grid; place-items: center; color: var(--accent); }
+    .arrow svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .export-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 30px; font-size: 13px; color: var(--muted); }
+    .chip { padding: 6px 12px; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 1px var(--line); font-family: var(--type); }
+    @media (max-width: 820px) { .compare { grid-template-columns: 1fr; } .arrow { transform: rotate(90deg); } .pane { min-height: 0; } }
+
+    /* ───── shortcuts ───── */
+    .shortcuts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 52px; }
+    .sc { background: var(--card); border-radius: 12px; padding: 18px; box-shadow: 0 0 0 1px var(--line); }
+    .sc kbd { display: inline-block; font: 600 13px var(--type); padding: 3px 8px; border-radius: 6px; background: var(--bg-2); box-shadow: inset 0 -2px 0 var(--line), 0 0 0 1px var(--line); margin-bottom: 10px; }
+    .sc div { font-size: 14px; color: var(--muted); }
+    @media (max-width: 820px) { .shortcuts { grid-template-columns: repeat(2, 1fr); } }
+
+    /* ───── letter ───── */
+    .letter-section { background: var(--bg-2); }
+    .letter {
+      max-width: 620px; margin: 0 auto; background: var(--card); padding: 56px 60px; border-radius: 4px;
+      box-shadow: var(--shadow); transform: rotate(-0.6deg);
+      font: 16px/2 var(--type);
+    }
+    .letter .salute { font-family: var(--hand); font-size: 32px; margin: 0 0 18px; line-height: 1.2; }
+    .letter p { margin: 0 0 16px; }
+    .letter .sign { font-family: var(--hand); font-size: 30px; text-align: right; margin: 26px 0 0; color: var(--accent); }
+    @media (max-width: 640px) { .letter { padding: 36px 26px; font-size: 14.5px; } }
+
+    /* ───── cta + footer ───── */
+    .final { padding: 140px 0 120px; }
+    .final .lede { margin-bottom: 30px; }
+    footer { border-top: 1px solid var(--line); padding: 44px 0 60px; font-size: 13.5px; color: var(--muted); }
+    footer .wrap { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+    footer .cols { display: flex; gap: 64px; flex-wrap: wrap; }
+    footer h6 { margin: 0 0 10px; font-size: 12px; font-weight: 500; color: var(--faint); }
+    footer a { display: block; text-decoration: none; padding: 3px 0; }
+    footer a:hover { color: var(--text); }
+
+    .reveal { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="icon.svg" alt="" />lamplight</a>
+    <nav class="links">
+      <a href="#features">기능</a>
+      <a href="#polish">AI로 다듬기</a>
+      <a href="https://github.com/designzeroplus-pro/lamplight/releases">릴리스 노트</a>
+    </nav>
+    <a class="btn nav-cta" href="#download">내려받기</a>
+  </div>
+</header>
+
+<main>
+  <!-- ───── hero ───── -->
+  <section class="hero">
+    <div class="wrap">
+      <h1 class="hand">램프 아래, 한 글자씩.</h1>
+      <p class="lede">타자기 감성의 macOS 노트. 어두운 방의 작은 램프 아래에서 쓰고,<br />다 쓰면 PDF로 내보내거나 AI로 회의록 · 보고서 · 이메일로 다듬으세요.</p>
+      <div class="dl" data-dl>
+        <a class="btn main" data-arch="arm64" href="#">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.32-3.5zM14.2 6.13c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.64-1.05 1.67-.92 2.66.97.08 1.96-.49 2.56-1.21z"/></svg>
+          Apple Silicon용 내려받기
+        </a>
+        <button class="btn more" aria-label="다른 버전" aria-expanded="false">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 8 4 4 4-4"/></svg>
+        </button>
+        <div class="dl-menu">
+          <a data-arch="arm64" href="#">Apple Silicon (M1 이후)<small>Lamplight-<span data-ver></span>-arm64.dmg</small></a>
+          <a data-arch="x64" href="#">Intel Mac<small>Lamplight-<span data-ver></span>.dmg</small></a>
+        </div>
+      </div>
+      <div class="fineprint">무료 · macOS · 버전 <span data-ver></span></div>
+
+      <div class="window" id="demo" style="--lx: 58%">
+        <div class="titlebar">
+          <i></i><i></i><i></i>
+          <div class="tb-title">Lamplight</div>
+          <button id="soundBtn" title="타자기 소리 듣기" aria-label="타자기 소리 켜기" aria-pressed="false">
+            <svg viewBox="0 0 20 20"><path d="M4 8h3l4-3v10l-4-3H4z"/><path class="w" d="m14 8 4 4m0-4-4 4"/></svg>
+          </button>
+        </div>
+        <div class="room" id="room">
+          <article class="sheet" id="sheet">
+            <div class="s-title" id="sTitle">디자인 리뷰</div>
+            <div class="s-meta">10월 7일 화요일 · 민지, 도윤, 서연</div>
+            <div class="s-rule"></div>
+            <div><span class="typed" id="typed"></span><span class="caret"></span></div>
+            <div class="doc" id="doc">
+              <h4>첫 화면 단순화</h4>
+              <ul>
+                <li>메인 화면의 정보가 많아 첫 행동이 보이지 않는다는 의견에 모두 동의.</li>
+                <li>주요 버튼을 화면 위쪽으로 옮기고, 보조 메뉴는 접어 두기로 함.</li>
+              </ul>
+              <h4>온보딩</h4>
+              <ul>
+                <li>민지: 3단계 안내를 1단계로 줄이고 나머지는 사용 중에 알려주자고 제안.</li>
+              </ul>
+              <h4>할 일</h4>
+              <ul>
+                <li>☐ 수정 시안 공유 — 도윤, 금요일까지</li>
+                <li>☐ 온보딩 문구 초안 — 서연, 다음 리뷰 전</li>
+              </ul>
+            </div>
+          </article>
+          <div class="shade"></div>
+          <div class="rail"></div>
+          <div class="lamp" aria-hidden="true">
+            <svg viewBox="0 0 104 64">
+              <defs>
+                <linearGradient id="lampBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b3937"/><stop offset=".45" stop-color="#242321"/><stop offset="1" stop-color="#161514"/></linearGradient>
+                <filter id="ember" x="-50%" y="-200%" width="200%" height="500%"><feGaussianBlur stdDeviation="2.4"/></filter>
+              </defs>
+              <rect x="50.5" y="5" width="3" height="26" rx="1.5" fill="#2a2826"/>
+              <rect x="34" y="-1" width="36" height="8" rx="4" fill="#ffcf87" filter="url(#ember)"/>
+              <rect x="40" y="2.2" width="24" height="4" rx="2" fill="#1d1c1b"/>
+              <rect x="41.5" y="1.4" width="21" height="2" rx="1" fill="#fff4dc"/>
+              <rect x="16" y="30" width="72" height="26" rx="13" fill="url(#lampBody)"/>
+              <rect x="16.5" y="30.5" width="71" height="25" rx="12.5" fill="none" stroke="rgba(255,255,255,.08)"/>
+              <circle cx="29" cy="43" r="2" fill="#7ad87a"/>
+            </svg>
+          </div>
+          <div class="polish" id="polishPill">
+            <svg viewBox="0 0 20 20"><path d="M9 3.5l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/></svg>
+            <span id="polishText">회의록으로 다듬는 중<span class="dots"></span></span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-notes">
+        <span class="handnote">↑ 마우스를 따라 램프가 움직여요</span>
+        <span class="handnote">⌘E 한 번이면 회의록 ↑</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── uses ───── -->
+  <div class="uses">
+    <p><span class="handnote">이럴 때 켜 두세요</span></p>
+    <div class="mask">
+      <div class="marquee" aria-hidden="true">
+        <span>회의 메모</span><span>오늘의 일기</span><span>주간 보고</span><span>아이디어 스케치</span><span>강의 노트</span><span>인터뷰 기록</span><span>편지 초안</span><span>새벽의 생각</span>
+        <span>회의 메모</span><span>오늘의 일기</span><span>주간 보고</span><span>아이디어 스케치</span><span>강의 노트</span><span>인터뷰 기록</span><span>편지 초안</span><span>새벽의 생각</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── features ───── -->
+  <section id="features">
+    <div class="wrap center">
+      <h2 class="hand reveal">쓰는 일에만 <em>집중</em>하도록</h2>
+      <p class="lede reveal">알림도, 화려한 서식도 없어요. 지금 쓰고 있는 줄만 환하게,<br />나머지는 조용히 어둠 속에 둡니다.</p>
+
+      <div class="features">
+        <div class="feature reveal">
+          <div class="art"><div class="mini-lamp"><div class="p"><b></b><b></b><b></b><b></b></div><div class="s"></div><i class="bulb"></i></div></div>
+          <h3>어두운 방, 작은 램프</h3>
+          <p>쓰는 자리만 빛이 닿아요. 지난 내용을 읽으려 스크롤하면 방이 살짝 밝아지고, 밤 · 낮 테마를 고를 수 있어요.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="art"><div class="keys" id="keys"><span class="key">L</span><span class="key">A</span><span class="key">M</span><span class="key">P</span><span class="key">글</span><span class="key">자</span></div></div>
+          <h3>타자기의 손맛</h3>
+          <p>Courier 글꼴과 함께, 키마다 조금씩 다른 타자기 소리가 납니다. 샘플 없이 매번 새로 합성해서 오래 써도 질리지 않아요.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="art"><div class="files"><div class="file f1"><b></b><b></b><b></b><span>.md</span></div><div class="file f2"><b></b><b></b><b></b><b></b><span>.pdf</span></div><div class="file f3"><b></b><b></b><span>.txt</span></div><div class="mac-badge">이 Mac에 저장</div></div></div>
+          <h3>노트는 내 Mac에</h3>
+          <p>노트와 폴더는 이 Mac에만 저장돼요. 계정도, 클라우드 동기화도 필요 없습니다. AI는 내가 요청할 때만 씁니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── polish demo ───── -->
+  <section class="polish-section" id="polish">
+    <div class="wrap center">
+      <h2 class="hand reveal">대충 적어요. <em>다듬기는 AI가.</em></h2>
+      <p class="lede reveal">회의 중엔 손이 머리를 못 따라가죠. 끄적인 메모를 ⌘E로 내보내면 원하는 형태로 정리해 줍니다. 미리 본 뒤 PDF나 Markdown으로 저장하세요.</p>
+
+      <div class="tabs" role="tablist" id="tabs"></div>
+
+      <div class="compare">
+        <div class="pane raw reveal"><div class="label">쓴 그대로</div><div id="rawNote"></div></div>
+        <div class="arrow"><svg viewBox="0 0 28 28"><path d="M5 14h18M16 7l7 7-7 7"/></svg></div>
+        <div class="pane out reveal" aria-live="polite"><div class="label" id="outLabel">회의록</div><div id="outBody"></div></div>
+      </div>
+
+      <div class="export-row">
+        <span class="chip">PDF (A4)</span><span class="chip">Markdown</span><span class="chip">복사</span><span class="chip">직접 요청</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── shortcuts ───── -->
+  <section>
+    <div class="wrap center">
+      <h2 class="hand reveal">손은 키보드 위에 그대로</h2>
+      <p class="lede reveal">마우스를 찾지 않아도 돼요. 목록은 Enter로 이어지고, Tab으로 들여 씁니다.</p>
+      <div class="shortcuts">
+        <div class="sc reveal"><kbd>⌘ N</kbd><div>새 노트</div></div>
+        <div class="sc reveal"><kbd>⌘ K</kbd><div>모든 노트 검색</div></div>
+        <div class="sc reveal"><kbd>⌘ E</kbd><div>내보내기 · AI로 다듬기</div></div>
+        <div class="sc reveal"><kbd>⌘ T</kbd><div>지금 시각 적기</div></div>
+        <div class="sc reveal"><kbd>⌘ L</kbd><div>램프 켜기 · 끄기</div></div>
+        <div class="sc reveal"><kbd>⌘ ⇧ L</kbd><div>밤 · 낮 전환</div></div>
+        <div class="sc reveal"><kbd>⌘ ⇧ S</kbd><div>타자기 소리</div></div>
+        <div class="sc reveal"><kbd>- [ ]</kbd><div>할 일 체크박스</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── letter ───── -->
+  <section class="letter-section">
+    <div class="wrap">
+      <div class="letter reveal">
+        <p class="salute">아직 직접 쓰는 사람들에게,</p>
+        <p>밤에 책상 위 작은 램프 하나만 켜 두면, 이상하게 생각이 또렷해집니다. 방의 나머지가 어두워지면, 남는 건 종이와 지금 쓰는 문장뿐이니까요.</p>
+        <p>요즘 노트 앱은 너무 많은 것을 보여줍니다. 알림, 사이드바, 공유 버튼, 끝없는 서식. 쓰기 전에 고를 게 너무 많아요.</p>
+        <p>Lamplight는 그 반대를 해보려고 만들었습니다. 한 글자씩 찍히는 소리, 빛이 닿는 한 줄. 정리는 다 쓴 다음에 해도 늦지 않습니다.</p>
+        <p class="sign">— 램프를 켜며, Lamplight</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───── final ───── -->
+  <section class="final center" id="download">
+    <div class="wrap">
+      <h2 class="hand" style="font-size: clamp(46px, 7vw, 72px)">오늘 밤, 램프를 켜 보세요.</h2>
+      <p class="lede">무료로 내려받고, 첫 문장을 적어 보세요.</p>
+      <div class="dl" data-dl>
+        <a class="btn main" data-arch="arm64" href="#">Apple Silicon용 내려받기
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v11M5.5 10.5 10 15l4.5-4.5"/></svg>
+        </a>
+        <button class="btn more" aria-label="다른 버전" aria-expanded="false">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 8 4 4 4-4"/></svg>
+        </button>
+        <div class="dl-menu">
+          <a data-arch="arm64" href="#">Apple Silicon (M1 이후)<small>Lamplight-<span data-ver></span>-arm64.dmg</small></a>
+          <a data-arch="x64" href="#">Intel Mac<small>Lamplight-<span data-ver></span>.dmg</small></a>
+        </div>
+      </div>
+      <p class="fineprint">처음 열 때 시스템 설정 › 개인정보 보호 및 보안에서 “그래도 열기”를 한 번 눌러 주세요.<br />새 버전이 나오면 앱이 알려 드려요.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <a class="brand" href="#" style="font-size:17px"><img src="icon.svg" alt="" style="width:24px;height:24px" />lamplight</a>
+      <div style="margin-top:8px">© 2026 designzeroplus</div>
+    </div>
+    <div class="cols">
+      <div><h6>제품</h6><a href="#download">내려받기</a><a href="#features">기능</a></div>
+      <div><h6>자료</h6><a href="https://github.com/designzeroplus-pro/lamplight/releases">릴리스 노트</a><a href="https://github.com/designzeroplus-pro/lamplight#readme">사용 안내</a></div>
+      <div><h6>커뮤니티</h6><a href="https://github.com/designzeroplus-pro/lamplight">GitHub</a><a href="https://github.com/designzeroplus-pro/lamplight/issues">의견 보내기</a></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* ───── downloads ───── */
+  const VERSION = '0.2.0';
+  const REL = `https://github.com/designzeroplus-pro/lamplight/releases/download/v${VERSION}/`;
+  const FILES = { arm64: `Lamplight-${VERSION}-arm64.dmg`, x64: `Lamplight-${VERSION}.dmg` };
+  document.querySelectorAll('[data-ver]').forEach(el => (el.textContent = VERSION));
+  document.querySelectorAll('[data-arch]').forEach(a => (a.href = REL + FILES[a.dataset.arch]));
+  document.querySelectorAll('[data-dl]').forEach(dl => {
+    const more = dl.querySelector('.more');
+    more.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = dl.classList.toggle('open');
+      more.setAttribute('aria-expanded', open);
+    });
+  });
+  document.addEventListener('click', () => document.querySelectorAll('[data-dl].open').forEach(d => d.classList.remove('open')));
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  /* ───── typewriter sound (synthesized, off by default) ───── */
+  let audio = null, soundOn = false;
+  const soundBtn = document.getElementById('soundBtn');
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    if (soundOn && !audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    soundBtn.setAttribute('aria-pressed', soundOn);
+    soundBtn.querySelector('.w').setAttribute('d', soundOn ? 'M14 7.5a3.5 3.5 0 0 1 0 5M15.8 5.5a6.2 6.2 0 0 1 0 9' : 'm14 8 4 4m0-4-4 4');
+  });
+  function clack(kind = 'key') {
+    if (!soundOn || !audio) return;
+    const t = audio.currentTime, len = kind === 'return' ? 0.09 : 0.035;
+    const buf = audio.createBuffer(1, audio.sampleRate * len, audio.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 4);
+    const src = audio.createBufferSource(); src.buffer = buf;
+    const bp = audio.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = (kind === 'return' ? 900 : 2200) * (0.85 + Math.random() * 0.3); bp.Q.value = 1.2;
+    const g = audio.createGain(); g.gain.value = 0.5 + Math.random() * 0.25;
+    src.connect(bp).connect(g).connect(audio.destination); src.start(t);
+    const o = audio.createOscillator(), og = audio.createGain();
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.05);
+    og.gain.setValueAtTime(0.25, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    o.connect(og).connect(audio.destination); o.start(t); o.stop(t + 0.07);
+  }
+
+  /* ───── hero: the lamp follows the mouse ───── */
+  const demo = document.getElementById('demo');
+  demo.addEventListener('pointermove', e => {
+    const r = demo.getBoundingClientRect();
+    const x = Math.min(88, Math.max(12, ((e.clientX - r.left) / r.width) * 100));
+    demo.style.setProperty('--lx', x + '%');
+  });
+  demo.addEventListener('pointerleave', () => demo.style.setProperty('--lx', '58%'));
+
+  /* ───── hero: type, then polish ───── */
+  const ROUGH = [
+    ['메인 화면 너무 복잡함', 0],
+    ['버튼 위치 -> 위로?', 0],
+    ['민지: 온보딩 3단계 넘 김, 1단계로', 1],
+    ['보조메뉴 접기', 0],
+    ['- [ ] 시안 금욜까지 (도윤)', 0],
+    ['- [ ] 온보딩 문구 (서연)', 0],
+  ];
+  const typed = document.getElementById('typed');
+  const sheet = document.getElementById('sheet');
+  const pill = document.getElementById('polishPill');
+  const pillText = document.getElementById('polishText');
+  const docEls = [...document.querySelectorAll('#doc h4, #doc li')];
+
+  async function runDemo() {
+    if (reduced) { sheet.classList.add('polished'); docEls.forEach(el => el.classList.add('in')); return; }
+    for (;;) {
+      typed.innerHTML = '';
+      sheet.classList.remove('polished');
+      docEls.forEach(el => el.classList.remove('in'));
+      pill.classList.remove('show');
+      await sleep(700);
+      for (const [line, red] of ROUGH) {
+        const span = document.createElement('span');
+        if (red) span.className = 'r';
+        typed.appendChild(span);
+        for (const ch of line) {
+          span.textContent += ch;
+          if (ch !== ' ') clack();
+          await sleep(55 + Math.random() * 90);
+        }
+        typed.appendChild(document.createTextNode('\n'));
+        clack('return');
+        await sleep(380);
+      }
+      await sleep(900);
+      pillText.innerHTML = '회의록으로 다듬는 중<span class="dots"></span>';
+      pill.classList.add('show');
+      await sleep(1800);
+      sheet.classList.add('polished');
+      for (const el of docEls) { el.classList.add('in'); await sleep(170); }
+      pillText.textContent = '다듬었어요 · PDF로 저장';
+      await sleep(5200);
+    }
+  }
+
+  /* start only once the demo is on screen */
+  new IntersectionObserver((entries, obs) => {
+    if (entries[0].isIntersecting) { obs.disconnect(); runDemo(); }
+  }).observe(demo);
+
+  /* ───── feature: keys press themselves ───── */
+  const keys = [...document.querySelectorAll('#keys .key')];
+  if (!reduced) setInterval(() => {
+    const k = keys[Math.floor(Math.random() * keys.length)];
+    k.classList.add('down'); setTimeout(() => k.classList.remove('down'), 120);
+  }, 420);
+
+  /* ───── polish demo ───── */
+  const RAW = `주간 회의 10/6
+매출 3분기 +12%, 목표 미달 (15%)
+<span class="r">광고비 너무 많이 씀 → 줄이자</span>
+신규 기능 출시 11월 중순?
+QA 인력 부족 — 외주 검토
+고객 문의 응답 늦음 평균 2일
+- [ ] 광고 예산안 (지훈) 금
+- [ ] 외주 업체 3곳 견적 (하린)`;
+  document.getElementById('rawNote').innerHTML = RAW;
+
+  const OUT = {
+    '회의록': `<h4>주간 회의 — 10월 6일</h4>
+      <h5>실적</h5><ul><li>3분기 매출은 12% 성장했으나 목표치 <mark>15%에 미달</mark>.</li><li>광고비 지출이 과다하다는 데 의견이 모였고, 축소하기로 함.</li></ul>
+      <h5>제품 · 운영</h5><ul><li>신규 기능 출시는 <mark>11월 중순</mark>을 목표로 함 (확정 전).</li><li>QA 인력이 부족해 외주를 검토.</li><li>고객 문의 평균 응답 시간 2일 — 개선 필요.</li></ul>
+      <h5>할 일</h5><ul><li>광고 예산 조정안 — 지훈, 금요일까지</li><li>외주 업체 3곳 견적 비교 — 하린</li></ul>`,
+    '보고서': `<h4>3분기 운영 현황 보고</h4>
+      <p><b>요약.</b> 3분기 매출은 전년 대비 12% 증가했으나 목표(15%)에는 3%p 못 미쳤습니다. 주요 원인은 광고 효율 저하로 판단됩니다.</p>
+      <p><b>현안.</b> QA 인력 부족으로 11월 중순 신규 기능 출시 일정에 위험이 있으며, 고객 문의 평균 응답 시간이 2일로 늘었습니다.</p>
+      <p><b>조치.</b> 광고 예산을 재조정하고, QA 외주 업체 3곳의 견적을 비교해 다음 주 회의에서 결정합니다.</p>`,
+    '이메일 초안': `<p><b>제목:</b> 10/6 주간 회의 정리 및 요청 사항</p>
+      <p>안녕하세요, 팀 여러분.</p>
+      <p>오늘 회의 내용을 간단히 정리해 드립니다. 3분기 매출은 12% 성장해 목표(15%)에는 조금 못 미쳤고, 광고비를 줄이는 방향으로 의견을 모았습니다. 신규 기능은 11월 중순 출시를 목표로 합니다.</p>
+      <p>지훈 님은 금요일까지 광고 예산안을, 하린 님은 QA 외주 업체 3곳의 견적을 부탁드립니다.</p>
+      <p>감사합니다.</p>`,
+    '한 장 요약': `<h4>한 줄로</h4><p>성장은 했지만 목표엔 못 미쳤고, 광고비를 줄이고 QA를 보강해 11월 출시를 지킨다.</p>
+      <h5>숫자</h5><ul><li>매출 <mark>+12%</mark> (목표 15%)</li><li>문의 응답 평균 <mark>2일</mark></li></ul>
+      <h5>결정</h5><ul><li>광고비 축소</li><li>QA 외주 검토</li></ul>`,
+    '할 일 목록': `<h4>할 일</h4>
+      <ul style="list-style:none;padding-left:0"><li>☐ 광고 예산 조정안 작성 — <b>지훈</b> · 금요일</li><li>☐ QA 외주 업체 3곳 견적 받기 — <b>하린</b></li><li>☐ 신규 기능 출시일 확정 — 다음 회의</li><li>☐ 고객 문의 응답 시간 개선안 — 담당 미정</li></ul>`,
+    '발표 개요': `<h4>3분기 리뷰 — 발표 개요</h4>
+      <ol><li><b>성과</b> — 매출 12% 성장, 목표 대비 −3%p</li><li><b>원인</b> — 광고 효율 저하</li><li><b>다음 분기</b> — 광고비 재배분, 11월 중순 신규 기능</li><li><b>리스크</b> — QA 인력, 고객 응답 2일</li><li><b>요청</b> — 외주 예산 승인</li></ol>`,
+  };
+  const tabs = document.getElementById('tabs');
+  const outBody = document.getElementById('outBody');
+  const outLabel = document.getElementById('outLabel');
+  function show(name) {
+    tabs.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.textContent === name));
+    outLabel.textContent = name;
+    outBody.innerHTML = `<div class="fade">${OUT[name]}</div>`;
+  }
+  Object.keys(OUT).forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'tab'; b.role = 'tab'; b.textContent = name;
+    b.addEventListener('click', () => show(name));
+    tabs.appendChild(b);
+  });
+  show('회의록');
+
+  /* ───── reveal on scroll ───── */
+  const io = new IntersectionObserver(entries => entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
