@@ -20,6 +20,49 @@ import Speech
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
+// ── Be our own "responsible process" ───────────────────────────────────────
+// macOS attributes privacy prompts to whichever app launched us (Lamplight,
+// but also Terminal or an IDE during development). If that app's Info.plist
+// lacks a speech-recognition usage string, TCC kills us instead of asking.
+// Re-launch ourselves with responsibility disclaimed so our own embedded
+// Info.plist (NSSpeechRecognitionUsageDescription) is the one that counts.
+@_silgen_name("responsibility_spawnattrs_setdisclaim")
+private func responsibility_spawnattrs_setdisclaim(_ attrs: UnsafeMutablePointer<posix_spawnattr_t?>, _ disclaim: Int32) -> Int32
+
+private var disclaimedChild: pid_t = 0
+
+private func relaunchDisclaimed() {
+  guard getenv("LAMPLIGHT_DISCLAIMED") == nil else { return }
+  var size: UInt32 = 4096
+  var buf = [CChar](repeating: 0, count: Int(size))
+  guard _NSGetExecutablePath(&buf, &size) == 0 else { return }
+  let exe = String(cString: buf)
+
+  var attr: posix_spawnattr_t?
+  posix_spawnattr_init(&attr)
+  defer { posix_spawnattr_destroy(&attr) }
+  guard responsibility_spawnattrs_setdisclaim(&attr, 1) == 0 else { return }
+  setenv("LAMPLIGHT_DISCLAIMED", "1", 1)
+
+  var argv: [UnsafeMutablePointer<CChar>?] = CommandLine.arguments.map { strdup($0) }
+  argv.append(nil)
+  var pid: pid_t = 0
+  let rc = posix_spawn(&pid, exe, nil, &attr, argv, environ)
+  argv.forEach { free($0) }
+  guard rc == 0 else { unsetenv("LAMPLIGHT_DISCLAIMED"); return }  // fall back to running in-process
+
+  // Pass stop signals through, then exit with the child's status.
+  disclaimedChild = pid
+  for sig in [SIGTERM, SIGINT, SIGHUP] {
+    signal(sig) { s in if disclaimedChild > 0 { kill(disclaimedChild, s) } }
+  }
+  var status: Int32 = 0
+  while waitpid(pid, &status, 0) == -1 && errno == EINTR {}
+  exit((status & 0x7f) == 0 ? (status >> 8) & 0xff : 128 + (status & 0x7f))
+}
+
+relaunchDisclaimed()
+
 func emit(_ obj: [String: Any]) {
   guard let data = try? JSONSerialization.data(withJSONObject: obj),
         let line = String(data: data, encoding: .utf8) else { return }
