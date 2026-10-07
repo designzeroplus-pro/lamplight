@@ -6,8 +6,6 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const crypto = require('node:crypto');
-const { spawn } = require('node:child_process');
-const readline = require('node:readline');
 const ai = require('./ai');
 const chatgpt = require('./chatgpt');
 
@@ -23,11 +21,6 @@ const cleanFolderId = (v) => (typeof v === 'string' && FOLDER_ID.test(v) ? v : n
 function noteDir(id) {
   if (typeof id !== 'string' || !/^[a-z0-9-]{6,64}$/i.test(id)) throw new Error('invalid note id');
   return path.join(notesRoot(), id);
-}
-
-function safeFile(name) {
-  if (typeof name !== 'string' || !/^[\w.-]+\.webm$/.test(name)) throw new Error('invalid file name');
-  return name;
 }
 
 async function readJSON(file, fallback) {
@@ -62,7 +55,6 @@ async function summarize(id) {
   const dir = path.join(notesRoot(), id);
   const note = await readJSON(path.join(dir, 'note.json'), null);
   if (!note) return null;
-  const recs = await readJSON(path.join(dir, 'recordings.json'), []);
   return {
     id: note.id,
     title: note.title || '',
@@ -76,7 +68,6 @@ async function summarize(id) {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 80),
-    recordings: recs.length,
   };
 }
 
@@ -92,7 +83,7 @@ ipcMain.handle('notes:list', async () => {
   let changed = false;
   await Promise.all(ids.map(async (id) => {
     const dir = path.join(notesRoot(), id);
-    const m = `${await statMs(path.join(dir, 'note.json'))}:${await statMs(path.join(dir, 'recordings.json'))}`;
+    const m = String(await statMs(path.join(dir, 'note.json')));
     if (noteIndex.get(id)?.m === m) return;
     noteIndex.set(id, { summary: await summarize(id), m });
     changed = true;
@@ -159,14 +150,13 @@ ipcMain.handle('notes:create', async (_e, folderId) => {
   };
   await fs.mkdir(noteDir(note.id), { recursive: true });
   await writeJSON(path.join(noteDir(note.id), 'note.json'), note);
-  return { ...note, recordings: [] };
+  return note;
 });
 
 ipcMain.handle('notes:load', async (_e, id) => {
   const dir = noteDir(id);
   const note = await readJSON(path.join(dir, 'note.json'), null);
   if (!note) return null;
-  note.recordings = await readJSON(path.join(dir, 'recordings.json'), []);
   return note;
 });
 
@@ -234,254 +224,6 @@ ipcMain.handle('notes:delete', async (_e, id) => {
   return true;
 });
 
-/* ───────────── audio ───────────── */
-
-/* Recordings stream to `<file>.part` as they happen, with a small sidecar
- * noting when the last chunk landed. If the app dies mid-meeting, the next
- * launch turns the leftovers into a normal recording. */
-
-const activeRecs = new Map(); // `${id}/${file}` → { stream, side, createdAt, lastSide }
-
-async function appendRecording(dir, entry) {
-  const listFile = path.join(dir, 'recordings.json');
-  const list = await readJSON(listFile, []);
-  list.push(entry);
-  await writeJSON(listFile, list);
-  return entry;
-}
-
-ipcMain.handle('audio:begin', async (_e, id, meta = {}) => {
-  const dir = noteDir(id);
-  await fs.mkdir(dir, { recursive: true });
-  const file = `rec-${Date.now()}.webm`;
-  const createdAt = Number(meta.createdAt) || Date.now();
-  const side = path.join(dir, `${file}.part.json`);
-  await writeJSON(side, { file, createdAt, updatedAt: createdAt });
-  const stream = fsSync.createWriteStream(path.join(dir, `${file}.part`), { flags: 'a' });
-  activeRecs.set(`${id}/${file}`, { stream, side, createdAt, lastSide: Date.now() });
-  return file;
-});
-
-ipcMain.on('audio:chunk', (_e, id, file, bytes) => {
-  const rec = activeRecs.get(`${id}/${file}`);
-  if (!rec) return;
-  rec.stream.write(Buffer.from(bytes));
-  const now = Date.now();
-  if (now - rec.lastSide > 3000) {
-    rec.lastSide = now;
-    writeJSON(rec.side, { file, createdAt: rec.createdAt, updatedAt: now }).catch(() => {});
-  }
-});
-
-async function closeRec(id, file) {
-  const key = `${id}/${file}`;
-  const rec = activeRecs.get(key);
-  activeRecs.delete(key);
-  if (rec) await new Promise((r) => rec.stream.end(r));
-}
-
-// `bytes` is the finished file with its duration patched in; the .part copy
-// is only kept until that lands safely.
-ipcMain.handle('audio:finish', async (_e, id, file, bytes, meta = {}) => {
-  const dir = noteDir(id);
-  safeFile(file);
-  await closeRec(id, file);
-  const final = path.join(dir, file);
-  const part = `${final}.part`;
-  if (bytes && bytes.length) {
-    await fs.writeFile(`${final}.tmp`, Buffer.from(bytes));
-    await fs.rename(`${final}.tmp`, final);
-    await fs.rm(part, { force: true });
-  } else {
-    await fs.rename(part, final);
-  }
-  await fs.rm(`${part}.json`, { force: true });
-  return appendRecording(dir, { file, createdAt: Number(meta.createdAt) || Date.now(), duration: Number(meta.duration) || 0 });
-});
-
-ipcMain.handle('audio:abort', async (_e, id, file) => {
-  const dir = noteDir(id);
-  safeFile(file);
-  await closeRec(id, file);
-  await fs.rm(path.join(dir, `${file}.part`), { force: true });
-  await fs.rm(path.join(dir, `${file}.part.json`), { force: true });
-});
-
-ipcMain.handle('audio:recover', async () => {
-  const recovered = [];
-  let dirs = [];
-  try { dirs = await fs.readdir(notesRoot(), { withFileTypes: true }); } catch { return recovered; }
-  for (const d of dirs.filter((x) => x.isDirectory())) {
-    const dir = path.join(notesRoot(), d.name);
-    for (const name of await fs.readdir(dir)) {
-      if (!name.endsWith('.part.json')) continue;
-      const file = name.slice(0, -'.part.json'.length);
-      if (activeRecs.has(`${d.name}/${file}`)) continue; // still recording (renderer reload)
-      const side = await readJSON(path.join(dir, name), null);
-      const part = path.join(dir, `${file}.part`);
-      let size = 0;
-      let lastWrite = 0;
-      try { const st = await fs.stat(part); size = st.size; lastWrite = st.mtimeMs; } catch {}
-      if (side && size > 0 && /^[\w.-]+\.webm$/.test(file)) {
-        await fs.rename(part, path.join(dir, file));
-        // The file's mtime moves with every chunk; the sidecar is a fallback.
-        const end = Math.max(side.updatedAt, lastWrite);
-        const duration = Math.max(1, (end - side.createdAt) / 1000);
-        const entry = await appendRecording(dir, { file, createdAt: side.createdAt, duration, recovered: true });
-        recovered.push({ noteId: d.name, ...entry });
-      } else {
-        await fs.rm(part, { force: true });
-      }
-      await fs.rm(path.join(dir, name), { force: true });
-    }
-  }
-  return recovered;
-});
-
-ipcMain.handle('audio:read', async (_e, id, file) => {
-  return fs.readFile(path.join(noteDir(id), safeFile(file)));
-});
-
-ipcMain.handle('audio:delete', async (_e, id, file) => {
-  const dir = noteDir(id);
-  safeFile(file);
-  const listFile = path.join(dir, 'recordings.json');
-  const list = await readJSON(listFile, []);
-  await writeJSON(listFile, list.filter((r) => r.file !== file));
-  try { await shell.trashItem(path.join(dir, file)); } catch { /* already gone */ }
-  return true;
-});
-
-ipcMain.handle('audio:reveal', async (_e, id, file) => {
-  shell.showItemInFolder(path.join(noteDir(id), safeFile(file)));
-});
-
-/* ───────────── live transcription ───────────── */
-
-let stt = null;
-
-function sttBinary() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'bin', 'lamplight-transcriber')
-    : path.join(__dirname, 'native', 'bin', 'lamplight-transcriber');
-}
-
-ipcMain.handle('stt:start', async (e, opts = {}) => {
-  if (stt) return true;
-  const locale = /^[a-z]{2}(-[A-Z]{2})?$/.test(opts.locale || '') ? opts.locale : 'ko-KR';
-  const bin = sttBinary();
-  try { await fs.access(bin); } catch {
-    e.sender.send('stt:event', { type: 'error', code: 'missing', message: 'transcriber not built' });
-    return false;
-  }
-  const proc = spawn(bin, ['--locale', locale], { stdio: ['pipe', 'pipe', 'pipe'] });
-  stt = proc;
-  // A small rolling log (userData/logs/stt.log) so transcription problems can be traced.
-  const logFile = path.join(app.getPath('userData'), 'logs', 'stt.log');
-  await fs.mkdir(path.dirname(logFile), { recursive: true });
-  try { if ((await fs.stat(logFile)).size > 512 * 1024) await fs.rename(logFile, `${logFile}.1`); } catch {}
-  const log = (msg) => fsSync.appendFile(logFile, `${new Date().toISOString()} ${msg}\n`, () => {});
-  sttLog = log;
-  audioStats.at = Date.now();
-  log(`start locale=${locale}`);
-  readline.createInterface({ input: proc.stdout }).on('line', (line) => {
-    let ev;
-    try { ev = JSON.parse(line); } catch { return; }
-    if (ev.type !== 'partial') log(line);
-    if (ev.type !== 'log') e.sender.send('stt:event', ev);
-  });
-  proc.stderr.on('data', (d) => log(`stderr ${String(d).trim()}`));
-  proc.stdin.on('error', () => {});
-  proc.on('exit', (code, signal) => {
-    log(`exit code=${code} signal=${signal}`);
-    if (stt === proc) stt = null;
-    if (!e.sender.isDestroyed()) e.sender.send('stt:event', { type: 'exit', code });
-  });
-  return true;
-});
-
-// Audio level of what we forward, logged every ~5 s (helps tell silence from a dead recognizer).
-const audioStats = { n: 0, sum: 0, peak: 0, chunks: 0, at: 0 };
-ipcMain.on('stt:audio', (_e, chunk) => {
-  if (!stt?.stdin.writable) return;
-  const buf = Buffer.from(chunk);
-  stt.stdin.write(buf);
-  const v = new Int16Array(buf.buffer, buf.byteOffset, buf.byteLength >> 1);
-  for (let i = 0; i < v.length; i += 4) { audioStats.sum += v[i] * v[i]; audioStats.peak = Math.max(audioStats.peak, Math.abs(v[i])); audioStats.n++; }
-  audioStats.chunks++;
-  if (Date.now() - audioStats.at > 5000) {
-    sttLog?.(`audio chunks=${audioStats.chunks} rms=${Math.round(Math.sqrt(audioStats.sum / Math.max(1, audioStats.n)))} peak=${audioStats.peak}`);
-    Object.assign(audioStats, { n: 0, sum: 0, peak: 0, chunks: 0, at: Date.now() });
-  }
-});
-ipcMain.on('stt:diag', (_e, msg) => sttLog?.(`renderer ${String(msg).slice(0, 300)}`));
-let sttLog = null;
-
-// Closing stdin lets the helper flush its last sentence before exiting.
-ipcMain.handle('stt:stop', () => new Promise((resolve) => {
-  const proc = stt;
-  if (!proc) return resolve(true);
-  const timer = setTimeout(() => { proc.kill(); resolve(true); }, 8000);
-  proc.once('exit', () => { clearTimeout(timer); resolve(true); });
-  proc.stdin.end();
-}));
-
-app.on('will-quit', () => stt?.kill());
-
-/* Whole-recording transcription after a meeting: the renderer sends 16 kHz
- * PCM (level-matched) plus the speech segments it found; the helper
- * recognizes each segment in file mode. */
-let sttFileBusy = false;
-ipcMain.handle('stt:file', async (e, { wav, segments, locale: loc }) => {
-  if (sttFileBusy) return { error: 'busy' };
-  sttFileBusy = true;
-  const locale = /^[a-z]{2}(-[A-Z]{2})?$/.test(loc || '') ? loc : 'ko-KR';
-  const base = path.join(app.getPath('temp'), `lamplight-${process.pid}-${Date.now()}`);
-  const send = (ev) => { if (!e.sender.isDestroyed()) e.sender.send('stt:file-event', ev); };
-  try {
-    await fs.writeFile(`${base}.wav`, Buffer.from(wav));
-    await fs.writeFile(`${base}.json`, JSON.stringify(segments));
-    const proc = spawn(sttBinary(), ['--file', `${base}.wav`, '--segments', `${base}.json`, '--locale', locale], { stdio: ['ignore', 'pipe', 'pipe'] });
-    readline.createInterface({ input: proc.stdout }).on('line', (line) => {
-      try { send(JSON.parse(line)); } catch {}
-    });
-    const code = await new Promise((r) => proc.on('exit', r));
-    return { ok: code === 0 };
-  } catch (err) {
-    return { error: String(err.message || err) };
-  } finally {
-    sttFileBusy = false;
-    fs.rm(`${base}.wav`, { force: true }).catch(() => {});
-    fs.rm(`${base}.json`, { force: true }).catch(() => {});
-  }
-});
-
-function runHelper(flag, timeoutMs) {
-  return new Promise((resolve) => {
-    const proc = spawn(sttBinary(), [flag], { stdio: ['ignore', 'pipe', 'ignore'] });
-    let out = '';
-    const timer = setTimeout(() => { proc.kill(); resolve('unknown'); }, timeoutMs);
-    proc.stdout.on('data', (d) => { out += d; });
-    proc.on('error', () => { clearTimeout(timer); resolve('missing'); });
-    proc.on('exit', () => {
-      clearTimeout(timer);
-      try { resolve(JSON.parse(out.trim().split('\n').pop()).status); } catch { resolve('unknown'); }
-    });
-  });
-}
-
-ipcMain.handle('stt:status', () => runHelper('--status', 5000));
-ipcMain.handle('stt:authorize', () => runHelper('--authorize', 120000));
-ipcMain.handle('mic:status', () => (
-  process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'
-));
-
-ipcMain.handle('mic:request', async () => {
-  if (process.platform !== 'darwin') return true;
-  if (systemPreferences.getMediaAccessStatus('microphone') === 'granted') return true;
-  return systemPreferences.askForMediaAccess('microphone');
-});
-
 /* ───────────── export / theme / lifecycle ───────────── */
 
 ipcMain.handle('export:note', async (_e, { name, content }) => {
@@ -493,6 +235,37 @@ ipcMain.handle('export:note', async (_e, { name, content }) => {
   if (canceled || !filePath) return null;
   await fs.writeFile(filePath, content, 'utf8');
   return filePath;
+});
+
+/* PDF: the export preview's HTML is laid into print.html (same fonts and
+ * document styles), rendered off-screen and printed to A4. */
+ipcMain.handle('export:pdf', async (_e, { name, title, html }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'PDF로 내보내기',
+    defaultPath: path.join(app.getPath('documents'), `${name || '노트'}.pdf`),
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (canceled || !filePath) return null;
+  const page = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true } });
+  try {
+    await page.loadFile(path.join(__dirname, 'src', 'print.html'));
+    await page.webContents.executeJavaScript(`(async () => {
+      document.title = ${JSON.stringify(String(title || ''))};
+      document.getElementById('doc').innerHTML = ${JSON.stringify(String(html || ''))};
+      await document.fonts.ready;
+      return true;
+    })()`);
+    const pdf = await page.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+    await fs.writeFile(filePath, pdf);
+    shell.showItemInFolder(filePath);
+    return filePath;
+  } finally {
+    page.destroy();
+  }
 });
 
 ipcMain.handle('theme:set', (_e, source) => {
@@ -531,7 +304,7 @@ function buildMenu() {
     {
       label: '파일',
       submenu: [
-        { label: '새 회의록', accelerator: 'CmdOrCtrl+N', click: () => sendMenu('new') },
+        { label: '새 노트', accelerator: 'CmdOrCtrl+N', click: () => sendMenu('new') },
         { label: '새 폴더', accelerator: 'CmdOrCtrl+Shift+N', click: () => sendMenu('new-folder') },
         { label: '내보내기…', accelerator: 'CmdOrCtrl+E', click: () => sendMenu('export') },
         { type: 'separator' },
@@ -555,18 +328,9 @@ function buildMenu() {
             { label: '이전 찾기', accelerator: 'CmdOrCtrl+Shift+G', click: () => sendMenu('find-prev') },
           ],
         },
-        { label: '모든 회의록 검색…', accelerator: 'CmdOrCtrl+K', click: () => sendMenu('search') },
-      ],
-    },
-    {
-      label: '회의',
-      submenu: [
-        { label: '녹음 시작 / 정지', accelerator: 'CmdOrCtrl+Shift+R', click: () => sendMenu('record') },
-        { label: '실시간 받아쓰기', accelerator: 'CmdOrCtrl+Shift+T', click: () => sendMenu('transcribe') },
-        { label: 'AI 요약', accelerator: 'CmdOrCtrl+Shift+M', click: () => sendMenu('summarize') },
-        { label: '받아쓰기 접기 / 펼치기', accelerator: 'CmdOrCtrl+Shift+H', click: () => sendMenu('fold') },
-        { label: '타임스탬프 삽입', accelerator: 'CmdOrCtrl+T', click: () => sendMenu('timestamp') },
-        { label: '재생 / 일시정지', accelerator: 'CmdOrCtrl+Shift+Space', click: () => sendMenu('play') },
+        { label: '모든 노트 검색…', accelerator: 'CmdOrCtrl+K', click: () => sendMenu('search') },
+        { type: 'separator' },
+        { label: '지금 시각 적기', accelerator: 'CmdOrCtrl+T', click: () => sendMenu('timestamp') },
       ],
     },
     {
@@ -723,8 +487,10 @@ app.whenReady().then(() => {
     setTimeout(checkForUpdates, 8000);
     setInterval(checkForUpdates, 6 * 60 * 60 * 1000);
   }
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
+  // Only clipboard writes (export → 복사) are needed; everything else is refused.
+  const allowed = new Set(['clipboard-sanitized-write']);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.has(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.has(permission));
   buildMenu();
   createWindow();
   app.on('activate', () => { if (!win) createWindow(); });

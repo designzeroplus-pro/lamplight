@@ -1,11 +1,10 @@
 {
   "name": "lamplight",
   "version": "0.1.1",
-  "description": "타자기 감성의 회의록 — 직접 타이핑하고, 녹음하고, 램프 아래에서 읽는다",
+  "description": "타자기 감성의 macOS 노트 — 램프 아래에서 쓰고, PDF로 내보내거나 ChatGPT로 다듬기",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:native": "node scripts/prepare-dev.js",
     "postinstall": "node scripts/prepare-dev.js",
     "dist": "node scripts/prepare-dev.js && electron-builder --mac dmg --arm64 --x64 -c.mac.identity=-",
     "release": "node scripts/prepare-dev.js && electron-builder --mac dmg --arm64 --x64 -c.mac.notarize=true"
@@ -20,8 +19,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
     "@fontsource/courier-prime": "^5.3.0",
-    "@fontsource/nanum-gothic-coding": "^5.3.0",
-    "fix-webm-duration": "^1.0.6"
+    "@fontsource/nanum-gothic-coding": "^5.3.0"
   },
   "productName": "Lamplight",
   "private": true,
@@ -35,7 +33,6 @@
       "chatgpt.js",
       "src/**",
       "node_modules/@fontsource/**",
-      "node_modules/fix-webm-duration/**",
       "node_modules/@anthropic-ai/**"
     ],
     "mac": {
@@ -43,10 +40,6 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "extendInfo": {
-        "NSMicrophoneUsageDescription": "회의를 녹음하기 위해 마이크 접근이 필요합니다.",
-        "NSSpeechRecognitionUsageDescription": "회의 녹음을 실시간으로 받아 적기 위해 음성 인식이 필요합니다."
-      },
       "icon": "build/icon.icns",
       "target": [
         {
@@ -58,12 +51,6 @@
         }
       ]
     },
-    "extraResources": [
-      {
-        "from": "native/bin/lamplight-transcriber",
-        "to": "bin/lamplight-transcriber"
-      }
-    ],
     "dmg": {
       "title": "Lamplight",
       "iconSize": 96

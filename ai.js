@@ -1,4 +1,4 @@
-/* Meeting summaries with Claude.
+/* AI for export: reshape a note with Claude (API key) or ChatGPT (chatgpt.js).
  *
  * The API key is entered by the user in the app and stored with Electron's
  * safeStorage (encrypted with a key held in the macOS Keychain). Without a
@@ -31,36 +31,17 @@ async function keyStatus() {
   return { hasKey: false, source: null, hint: '' };
 }
 
-const SYSTEM = `당신은 회의록 정리 도우미입니다. 사용자가 회의 제목, 참석자, 그리고 회의 중 직접 쓴 메모와 음성 받아쓰기 내용을 줍니다.
-받아쓰기 줄은 [mm:ss] 타임스탬프로 시작하며 인식 오류가 섞여 있을 수 있습니다.
-
-결과는 타자기로 종이에 찍히는 일반 텍스트입니다. 마크다운 기호(#, **, 표)는 쓰지 말고 아래 형식을 그대로 따르세요.
-
-요약
-- 회의의 핵심을 3~5개 항목으로
-
-결정 사항
-1. 회의에서 확정된 것만
-
-할 일
-- [ ] 담당자: 할 일 (기한이 언급됐다면 함께)
-
-규칙:
-- 한국어로, 짧고 분명하게 씁니다.
-- 회의 내용에 없는 사실은 만들지 않습니다. 결정 사항이나 할 일이 없으면 그 아래에 "없음"이라고 씁니다.
-- 담당자를 알 수 없으면 "담당 미정"이라고 씁니다.
-- 특정 발언에서 나온 항목이면 끝에 해당 타임스탬프를 [mm:ss] 형식으로 붙입니다.
-- 형식 외의 인사말이나 설명은 쓰지 않습니다.`;
+const SYSTEM = `당신은 필기를 깔끔한 문서로 다듬는 편집자입니다. 결과는 Markdown으로만 쓰고, 노트에 없는 사실은 만들지 않습니다.`;
 
 let running = null; // the active MessageStream, so it can be cancelled
 
-/* The same summary on the person's ChatGPT plan (see chatgpt.js). */
-async function summarizeWithChatGPT(prompt, send) {
+/* The same request on the person's ChatGPT plan (see chatgpt.js). */
+async function generateWithChatGPT(system, prompt, send) {
   const ctrl = new AbortController();
   running = { abort: () => ctrl.abort() };
   try {
     const out = await gpt.stream({
-      system: SYSTEM,
+      system,
       prompt,
       signal: ctrl.signal,
       onText: (text) => send({ type: 'delta', text }),
@@ -101,20 +82,15 @@ function register() {
     return true;
   });
 
-  // Streams the summary back as `ai:event` messages: delta / done / error.
-  ipcMain.handle('ai:summarize', async (e, note) => {
+  // Streams a generated document back as `ai:event` messages: delta / done / error.
+  // The renderer supplies the instructions (system) and the request with the note (prompt).
+  ipcMain.handle('ai:generate', async (e, job) => {
     if (running) return false;
     const send = (ev) => { if (!e.sender.isDestroyed()) e.sender.send('ai:event', ev); };
-    const prompt = [
-      `회의 제목: ${note.title || '(제목 없음)'}`,
-      `일시: ${note.date || ''}`,
-      `참석자: ${note.attendees || '(기록 없음)'}`,
-      '',
-      '회의 내용:',
-      note.body,
-    ].join('\n');
+    const system = String(job.system || SYSTEM);
+    const prompt = String(job.prompt || '');
 
-    if (note.provider === 'chatgpt') return summarizeWithChatGPT(prompt, send);
+    if (job.provider === 'chatgpt') return generateWithChatGPT(system, prompt, send);
 
     const stored = await readStoredKey();
     const client = new Anthropic(stored ? { apiKey: stored } : {});
@@ -126,7 +102,7 @@ function register() {
         // On a safety decline, rerun on Anthropic's recommended fallback model.
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
-        system: SYSTEM,
+        system,
         messages: [{ role: 'user', content: prompt }],
       });
       running = stream;

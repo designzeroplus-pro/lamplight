@@ -1,0 +1,36 @@
+/* The exported document — shared by the export preview and the PDF. */
+.doc {
+  --doc-ink: #1d1a16;
+  --doc-dim: #6f675b;
+  --doc-red: #a5301f;
+  font-family: 'Courier Prime', 'Nanum Gothic Coding', ui-monospace, Menlo, monospace;
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--doc-ink);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.doc > :first-child { margin-top: 0; }
+.doc h1 {
+  margin: 0 0 6px;
+  font-size: 23px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--doc-ink) 70%, #f3eee4);
+  text-shadow: 0 1px 0 rgba(255, 253, 246, 0.9), 0 -0.6px 0 rgba(30, 22, 14, 0.3);
+}
+.doc h1 + p { color: var(--doc-dim); font-size: 12px; letter-spacing: 0.04em; }
+.doc h2 { margin: 26px 0 8px; font-size: 16px; font-weight: 700; }
+.doc h3 { margin: 18px 0 6px; font-size: 14px; font-weight: 700; }
+.doc p { margin: 0 0 12px; }
+.doc ul, .doc ol { margin: 0 0 12px; padding-left: 22px; }
+.doc li { margin: 2px 0; }
+.doc li.task { list-style: none; margin-left: -20px; }
+.doc .box { display: inline-block; width: 1.2em; color: #9a5520; }
+.doc .box.on { color: var(--doc-dim); }
+.doc li.task:has(.box.on) { color: var(--doc-dim); text-decoration: line-through; text-decoration-thickness: 1px; }
+.doc hr { border: 0; height: 1px; margin: 18px 0; background-image: linear-gradient(90deg, rgba(29, 26, 22, 0.35) 0 6px, transparent 6px 11px); background-size: 11px 1px; }
+.doc blockquote { margin: 0 0 12px; padding-left: 12px; border-left: 2px solid rgba(29, 26, 22, 0.2); color: var(--doc-dim); }
+.doc code { font-size: 0.92em; padding: 0 4px; border-radius: 3px; background: rgba(29, 26, 22, 0.06); }
+.doc .stamp { color: var(--doc-red); }
+.doc .hint { color: var(--doc-dim); text-align: center; margin-top: 40%; }

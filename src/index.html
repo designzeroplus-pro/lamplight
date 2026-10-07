@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; font-src 'self';" />
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';" />
   <title>Lamplight</title>
   <link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/400.css" />
   <link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/700.css" />
   <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/400.css" />
   <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/700.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="doc.css" />
 </head>
 <body class="dark">
   <div class="app" id="app">
@@ -20,20 +21,20 @@
           <svg viewBox="0 0 20 20"><rect x="2.8" y="4.2" width="14.4" height="11.6" rx="2.4"/><path d="M7.8 4.2v11.6"/><path d="M4.8 7.4h1.2M4.8 9.6h1.2"/></svg>
         </button>
         <span class="grow"></span>
-        <button class="icon nodrag" id="searchBtn" title="모든 회의록 검색 (⌘K)" aria-label="검색">
+        <button class="icon nodrag" id="searchBtn" title="모든 노트 검색 (⌘K)" aria-label="검색">
           <svg viewBox="0 0 20 20"><circle cx="8.8" cy="8.8" r="5.3"/><path d="m12.8 12.8 4 4"/></svg>
         </button>
-        <button class="icon nodrag" id="newNote" title="새 회의록 (⌘N)" aria-label="새 회의록">
+        <button class="icon nodrag" id="newNote" title="새 노트 (⌘N)" aria-label="새 노트">
           <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>
         </button>
       </div>
       <div class="sidebar-section">
-        <span>회의록</span>
+        <span>노트</span>
         <button class="icon" id="newFolder" title="새 폴더 (⌘⇧N)" aria-label="새 폴더">
           <svg viewBox="0 0 20 20"><path d="M3 6.5V15a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H9.5L8 5H4a1 1 0 0 0-1 1.5z"/><path d="M10 9.5v4M8 11.5h4"/></svg>
         </button>
       </div>
-      <ul class="note-list" id="noteList" aria-label="회의록 목록"></ul>
+      <ul class="note-list" id="noteList" aria-label="노트 목록"></ul>
     </aside>
 
     <!-- ───────── stage ───────── -->
@@ -43,8 +44,6 @@
           <svg viewBox="0 0 20 20"><rect x="2.8" y="4.2" width="14.4" height="11.6" rx="2.4"/><path d="M7.8 4.2v11.6"/><path d="M4.8 7.4h1.2M4.8 9.6h1.2"/></svg>
         </button>
         <div class="topbar-center">
-          <span class="rec-badge" id="recBadge"><i></i>REC <b id="recBadgeTime">00:00</b></span>
-          <button class="fold-pill nodrag" id="foldPill" title="받아쓰기 펼치기 (⌘⇧H)"></button>
         </div>
         <div class="counter" id="counter">0 / 0</div>
         <button class="icon nodrag" id="soundToggle" title="타자기 소리 (⌘⇧S)" aria-label="타자기 소리">
@@ -63,7 +62,7 @@
           <article class="paper" id="paper">
             <div class="title-wrap">
               <div class="title-mirror" id="titleMirror" aria-hidden="true"></div>
-              <textarea class="title-input typed" id="title" rows="1" placeholder="제목 없는 회의" spellcheck="false" maxlength="120" aria-label="회의 제목"></textarea>
+              <textarea class="title-input typed" id="title" rows="1" placeholder="제목 없는 노트" spellcheck="false" maxlength="120" aria-label="노트 제목"></textarea>
             </div>
             <div class="meta">
               <span id="date"></span>
@@ -73,7 +72,7 @@
             <div class="rule"></div>
             <div class="editor" id="editor">
               <div class="mirror" id="mirror" aria-hidden="true"></div>
-              <textarea id="input" spellcheck="false" autocomplete="off" aria-label="회의 내용"
+              <textarea id="input" spellcheck="false" autocomplete="off" aria-label="노트 내용"
                 placeholder="설렘을 위한 작은 공간.&#10;&#10;잠시 천천히,&#10;오늘의 이야기를 적어보세요."></textarea>
             </div>
           </article>
@@ -124,7 +123,7 @@
 
         <div class="findbar" id="findBar" role="search">
           <span class="find-icon"><svg viewBox="0 0 20 20"><circle cx="8.8" cy="8.8" r="5.3"/><path d="m12.8 12.8 4 4"/></svg></span>
-          <input id="findInput" placeholder="이 회의록에서 찾기" spellcheck="false" autocomplete="off" />
+          <input id="findInput" placeholder="이 노트에서 찾기" spellcheck="false" autocomplete="off" />
           <span class="find-count" id="findCount"></span>
           <button class="icon" id="findPrev" title="이전 (⌘⇧G)" aria-label="이전"><svg viewBox="0 0 20 20"><path d="m6 12 4-4 4 4"/></svg></button>
           <button class="icon" id="findNext" title="다음 (⌘G)" aria-label="다음"><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4"/></svg></button>
@@ -133,7 +132,7 @@
       </div>
 
       <!-- ───────── dock ───────── -->
-      <div class="dock" id="dock" role="toolbar" aria-label="램프와 녹음">
+      <div class="dock" id="dock" role="toolbar" aria-label="램프와 내보내기">
         <button class="dock-btn lamp-switch" id="lampSwitch" title="램프 (⌘L)" aria-label="램프 켜기 끄기">
           <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.6v1.6M10 15.8v1.6M2.6 10h1.6M15.8 10h1.6M4.8 4.8l1.1 1.1M14.1 14.1l1.1 1.1M4.8 15.2l1.1-1.1M14.1 5.9l1.1-1.1"/></svg>
         </button>
@@ -143,34 +142,11 @@
 
         <div class="dock-sep"></div>
 
-        <button class="dock-btn rec-btn" id="recBtn" title="녹음 (⌘⇧R)" aria-label="녹음"><span></span></button>
-        <span class="rec-time" id="recTime">00:00</span>
-        <canvas class="wave" id="wave"></canvas>
-        <button class="dock-btn stt-btn" id="sttBtn" title="실시간 받아쓰기" aria-label="실시간 받아쓰기">
-          <svg viewBox="0 0 20 20"><path d="M4.5 4.5h11a1.5 1.5 0 0 1 1.5 1.5v6.5a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 2.6V14H4.5A1.5 1.5 0 0 1 3 12.5V6a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M6.5 8h7M6.5 10.8h4.5"/></svg>
+        <button class="dock-btn export-btn" id="exportBtn" title="내보내기 (⌘E)" aria-label="내보내기">
+          <svg viewBox="0 0 20 20"><path d="M10 3v9.5M6.5 6.5 10 3l3.5 3.5"/><path d="M5 10v5.5A1.5 1.5 0 0 0 6.5 17h7a1.5 1.5 0 0 0 1.5-1.5V10"/></svg>
+          <span>내보내기</span>
         </button>
-
-        <button class="dock-btn ai-btn" id="aiBtn" title="AI 요약 (⌘⇧M)" aria-label="AI 요약">
-          <svg viewBox="0 0 20 20"><path d="M9 3.5l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M15 12.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>
-        </button>
-
-        <div class="dock-sep player-part"></div>
-
-        <div class="player player-part">
-          <button class="dock-btn" id="playBtn" title="재생 (⌘⇧Space)" aria-label="재생">
-            <svg viewBox="0 0 20 20" class="play"><path d="M7 4.8v10.4l8.2-5.2z"/></svg>
-            <svg viewBox="0 0 20 20" class="pause"><rect x="5.5" y="4.8" width="3" height="10.4" rx="1"/><rect x="11.5" y="4.8" width="3" height="10.4" rx="1"/></svg>
-          </button>
-          <input type="range" class="scrub" id="seek" min="0" max="1000" value="0" aria-label="재생 위치" />
-          <span class="play-time" id="playTime">0:00</span>
-          <button class="rec-menu" id="recMenu" title="녹음 선택 · 삭제" aria-label="녹음 메뉴" aria-haspopup="menu">
-            <span id="recMenuLabel">녹음</span>
-            <svg viewBox="0 0 12 12"><path d="M3.5 4.8 6 7.3l2.5-2.5"/></svg>
-          </button>
-        </div>
       </div>
-
-      <div class="caption" id="caption" aria-live="polite"><i></i><span id="captionText"></span></div>
 
       <div class="popover" id="lightPop" role="dialog" aria-label="조명 조절">
         <div class="pop-row">
@@ -191,13 +167,13 @@
   </div>
 
   <div class="palette-backdrop" id="palette" hidden>
-    <div class="palette" role="dialog" aria-label="회의록 검색">
+    <div class="palette" role="dialog" aria-label="노트 검색">
       <div class="palette-field">
         <svg viewBox="0 0 20 20"><circle cx="8.8" cy="8.8" r="5.3"/><path d="m12.8 12.8 4 4"/></svg>
-        <input id="paletteInput" placeholder="회의록 검색 — 제목, 참석자, 내용" spellcheck="false" autocomplete="off" />
+        <input id="paletteInput" placeholder="노트 검색 — 제목, 참석자, 내용" spellcheck="false" autocomplete="off" />
         <kbd>esc</kbd>
       </div>
-      <div class="palette-label" id="paletteLabel">최근 회의록</div>
+      <div class="palette-label" id="paletteLabel">최근 노트</div>
       <ul class="palette-results" id="paletteResults" role="listbox"></ul>
       <div class="palette-empty" id="paletteEmpty">찾는 내용이 없어요</div>
     </div>
@@ -207,7 +183,7 @@
     <div class="sheet ai-sheet" role="dialog" aria-labelledby="keyTitle">
       <div class="sheet-icon"><svg viewBox="0 0 20 20"><path d="M9 3.5l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M15 12.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg></div>
       <h2 id="keyTitle">AI 연결</h2>
-      <p>회의가 끝나면 요약 · 결정 사항 · 할 일을 정리해 종이에 타자기로 쳐 드려요.</p>
+      <p>내보내기에서 노트를 회의록 · 보고서 · 이메일 등으로 다듬어 줘요.</p>
 
       <div class="seg provider" id="aiProvider" role="radiogroup" aria-label="요약에 쓸 AI">
         <button data-v="chatgpt" role="radio">ChatGPT 구독</button>
@@ -268,17 +244,6 @@
       </div>
 
       <div class="set-group">
-        <div class="set-label">녹음 · 받아쓰기</div>
-        <div class="set-row"><label for="setLocale">받아쓰기 언어</label>
-          <select id="setLocale">
-            <option value="ko-KR">한국어</option><option value="en-US">English</option><option value="ja-JP">日本語</option><option value="zh-CN">中文 (简体)</option>
-          </select>
-        </div>
-        <div class="set-row"><label for="setRetranscribe">녹음이 끝나면 전체 다시 받아쓰기</label><input type="checkbox" class="switch" id="setRetranscribe" /></div>
-        <div class="set-row"><label for="setAutoSummary">녹음이 끝나면 자동으로 요약</label><input type="checkbox" class="switch" id="setAutoSummary" /></div>
-      </div>
-
-      <div class="set-group">
         <div class="set-label">손쉬운 사용</div>
         <div class="set-row"><label for="setMotion">움직임 줄이기</label>
           <select id="setMotion"><option value="system">시스템 설정 따르기</option><option value="on">켬</option><option value="off">끔</option></select>
@@ -297,28 +262,21 @@
     <div class="sheet onboard" role="dialog" aria-labelledby="obTitle">
       <div class="ob-step" data-step="0">
         <div class="ob-lamp" aria-hidden="true"><i></i></div>
-        <h2 id="obTitle">작은 램프 아래의 회의록</h2>
-        <p>타자기처럼 한 글자씩 적고, 회의를 녹음하면 말한 내용이 종이 위에 찍혀요. 끝나면 Claude가 요약과 할 일을 정리해 드려요.</p>
+        <h2 id="obTitle">작은 램프 아래의 노트</h2>
+        <p>타자기처럼 한 글자씩 적어 보세요. 다 쓰면 PDF로 내보내거나, ChatGPT로 회의록 · 보고서 · 이메일처럼 다듬어 내보낼 수 있어요.</p>
         <ul class="ob-list">
-          <li><b>⌘⇧R</b> 녹음 시작 · 정지</li>
-          <li><b>⌘T</b> 지금 시각 타임스탬프</li>
-          <li><b>⌘K</b> 모든 회의록 검색</li>
+          <li><b>⌘E</b> 내보내기 (PDF · Markdown · AI 정리)</li>
+          <li><b>⌘K</b> 모든 노트 검색</li>
+          <li><b>⌘T</b> 지금 시각 적기</li>
         </ul>
       </div>
       <div class="ob-step" data-step="1">
-        <h2>녹음과 받아쓰기 권한</h2>
-        <p>두 가지 권한을 물어볼게요. 녹음 파일은 이 Mac에만 저장되고, 받아쓰기는 가능하면 Mac 안에서 처리돼요.</p>
-        <div class="ob-perm"><span class="ob-perm-icon">🎙</span><div><b>마이크</b><small>회의 소리를 녹음해요</small></div><em id="obMic">확인 중</em></div>
-        <div class="ob-perm"><span class="ob-perm-icon">💬</span><div><b>음성 인식</b><small>말한 내용을 실시간으로 받아 적어요</small></div><em id="obSpeech">확인 중</em></div>
-        <button class="btn primary wide" id="obAllow">권한 허용하기</button>
-      </div>
-      <div class="ob-step" data-step="2">
-        <h2>AI 요약 (선택)</h2>
-        <p>회의가 끝나면 ✦ 버튼으로 요약 · 결정 사항 · 할 일을 받아볼 수 있어요. ChatGPT Plus · Pro 계정으로 로그인하거나 Claude API 키를 연결하세요. 나중에 설정에서 해도 돼요.</p>
+        <h2>ChatGPT 연결 (선택)</h2>
+        <p>ChatGPT Plus · Pro 계정으로 로그인하면 내보내기에서 노트를 회의록, 보고서, 이메일, 발표 개요 등으로 다듬어 줘요. Claude API 키도 쓸 수 있어요. 나중에 설정에서 해도 돼요.</p>
         <button class="btn wide" id="obKey">AI 연결하기</button>
       </div>
       <div class="ob-foot">
-        <div class="ob-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="ob-dots" aria-hidden="true"><i></i><i></i></div>
         <span class="grow"></span>
         <button class="btn ghost" id="obSkip">건너뛰기</button>
         <button class="btn primary" id="obNext">다음</button>
@@ -326,14 +284,44 @@
     </div>
   </div>
 
-  <audio id="audio" preload="auto"></audio>
+  <div class="sheet-backdrop" id="exportSheet" hidden>
+    <div class="sheet export-sheet" role="dialog" aria-labelledby="exportTitle">
+      <aside class="export-side">
+        <h2 id="exportTitle">내보내기</h2>
+        <div class="export-label">그대로</div>
+        <button class="export-opt" data-kind="plain"><b>원문</b><small>쓴 그대로 깔끔한 문서로</small></button>
+        <div class="export-label">AI로 다듬기 <span id="exportWho"></span></div>
+        <button class="export-opt" data-kind="minutes"><b>정리된 회의록</b><small>개요 · 논의 · 결정 · 할 일</small></button>
+        <button class="export-opt" data-kind="report"><b>보고서</b><small>요약 · 배경 · 내용 · 다음 단계</small></button>
+        <button class="export-opt" data-kind="email"><b>이메일 초안</b><small>바로 보낼 수 있는 업무 메일</small></button>
+        <button class="export-opt" data-kind="summary"><b>한 장 요약</b><small>결론과 핵심 몇 줄</small></button>
+        <button class="export-opt" data-kind="todo"><b>할 일 목록</b><small>담당 · 기한 체크리스트</small></button>
+        <button class="export-opt" data-kind="slides"><b>발표 개요</b><small>슬라이드별 제목과 요점</small></button>
+        <button class="export-opt" data-kind="custom"><b>직접 요청</b><small>원하는 형식을 적어서</small></button>
+      </aside>
+      <section class="export-main">
+        <div class="export-custom" id="exportCustom" hidden>
+          <textarea id="exportPrompt" rows="2" placeholder="예: 투자자에게 보낼 한 페이지 업데이트로 바꿔줘  (⌘↩ 만들기)"></textarea>
+          <button class="btn primary" id="exportRun">만들기</button>
+        </div>
+        <div class="export-page"><article class="export-preview doc" id="exportPreview"></article></div>
+        <div class="export-actions">
+          <span class="export-status" id="exportStatus"></span>
+          <button class="btn ghost" id="exportStop" hidden>멈추기</button>
+          <span class="grow"></span>
+          <button class="btn" id="exportRedo" title="다시 만들기">다시 만들기</button>
+          <button class="btn" id="exportCopy">복사</button>
+          <button class="btn" id="exportMd">Markdown</button>
+          <button class="btn primary" id="exportPdf">PDF로 저장</button>
+          <button class="btn" id="exportClose">닫기</button>
+        </div>
+      </section>
+    </div>
+  </div>
 
-  <script src="../node_modules/fix-webm-duration/fix-webm-duration.js"></script>
   <script src="sound.js"></script>
   <script src="ink-editor.js"></script>
   <script src="lamp.js"></script>
-  <script src="recorder.js"></script>
-  <script src="transcriber.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
