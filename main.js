@@ -381,6 +381,8 @@ ipcMain.handle('stt:start', async (e, opts = {}) => {
   await fs.mkdir(path.dirname(logFile), { recursive: true });
   try { if ((await fs.stat(logFile)).size > 512 * 1024) await fs.rename(logFile, `${logFile}.1`); } catch {}
   const log = (msg) => fsSync.appendFile(logFile, `${new Date().toISOString()} ${msg}\n`, () => {});
+  sttLog = log;
+  audioStats.at = Date.now();
   log(`start locale=${locale}`);
   readline.createInterface({ input: proc.stdout }).on('line', (line) => {
     let ev;
@@ -398,9 +400,22 @@ ipcMain.handle('stt:start', async (e, opts = {}) => {
   return true;
 });
 
+// Audio level of what we forward, logged every ~5 s (helps tell silence from a dead recognizer).
+const audioStats = { n: 0, sum: 0, peak: 0, chunks: 0, at: 0 };
 ipcMain.on('stt:audio', (_e, chunk) => {
-  if (stt?.stdin.writable) stt.stdin.write(Buffer.from(chunk));
+  if (!stt?.stdin.writable) return;
+  const buf = Buffer.from(chunk);
+  stt.stdin.write(buf);
+  const v = new Int16Array(buf.buffer, buf.byteOffset, buf.byteLength >> 1);
+  for (let i = 0; i < v.length; i += 4) { audioStats.sum += v[i] * v[i]; audioStats.peak = Math.max(audioStats.peak, Math.abs(v[i])); audioStats.n++; }
+  audioStats.chunks++;
+  if (Date.now() - audioStats.at > 5000) {
+    sttLog?.(`audio chunks=${audioStats.chunks} rms=${Math.round(Math.sqrt(audioStats.sum / Math.max(1, audioStats.n)))} peak=${audioStats.peak}`);
+    Object.assign(audioStats, { n: 0, sum: 0, peak: 0, chunks: 0, at: Date.now() });
+  }
 });
+ipcMain.on('stt:diag', (_e, msg) => sttLog?.(`renderer ${String(msg).slice(0, 300)}`));
+let sttLog = null;
 
 // Closing stdin lets the helper flush its last sentence before exiting.
 ipcMain.handle('stt:stop', () => new Promise((resolve) => {

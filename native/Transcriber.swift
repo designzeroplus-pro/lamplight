@@ -123,6 +123,9 @@ final class LiveTranscriber {
   }
 
   var onDevice: Bool { recognizer.supportsOnDeviceRecognition }
+  // --server: let Apple's servers recognize (more accurate, needs internet,
+  // audio leaves the Mac). Default stays on-device.
+  let preferServer = CommandLine.arguments.contains("--server")
 
   func start() {
     queue.async { [self] in
@@ -143,7 +146,7 @@ final class LiveTranscriber {
     let req = SFSpeechAudioBufferRecognitionRequest()
     req.shouldReportPartialResults = true
     req.taskHint = .dictation
-    if onDevice { req.requiresOnDeviceRecognition = true }
+    if onDevice && !preferServer { req.requiresOnDeviceRecognition = true }
     if #available(macOS 13, *) { req.addsPunctuation = true }
     request = req
     segStarted = Date()
@@ -221,6 +224,7 @@ final class LiveTranscriber {
     Thread {
       let handle = FileHandle.standardInput
       var carry = Data()
+      var gain: Float = 1
       while true {
         let chunk = handle.availableData
         if chunk.isEmpty { break }  // EOF
@@ -233,9 +237,25 @@ final class LiveTranscriber {
         guard let buffer = AVAudioPCMBuffer(pcmFormat: self.format, frameCapacity: AVAudioFrameCount(frames)) else { continue }
         buffer.frameLength = AVAudioFrameCount(frames)
         let out = buffer.floatChannelData![0]
+        var energy: Float = 0
         bytes.withUnsafeBytes { raw in
           let src = raw.bindMemory(to: Int16.self)
-          for i in 0..<frames { out[i] = Float(Int16(littleEndian: src[i])) / 32768 }
+          for i in 0..<frames {
+            let v = Float(Int16(littleEndian: src[i])) / 32768
+            out[i] = v
+            energy += v * v
+          }
+        }
+        // Automatic gain: quiet voices (laptop mic across a table) are lifted
+        // toward a comfortable level so the recognizer hears them as speech.
+        // Near-silence is left alone so room noise isn't amplified.
+        let rms = (energy / Float(max(frames, 1))).squareRoot()
+        if rms > 0.004 {
+          let wanted = min(8, max(1, 0.12 / rms))
+          gain += (wanted - gain) * (wanted < gain ? 0.5 : 0.15)
+        }
+        if gain > 1.01 {
+          for i in 0..<frames { out[i] = tanhf(out[i] * gain) }  // soft limit, no harsh clipping
         }
         self.queue.async { self.request?.append(buffer) }
       }
@@ -283,7 +303,7 @@ SFSpeechRecognizer.requestAuthorization { status in
     exit(4)
   }
   engine = e
-  emit(["type": "ready", "onDevice": e.onDevice, "locale": localeId])
+  emit(["type": "ready", "onDevice": e.onDevice && !e.preferServer, "locale": localeId])
   e.start()
 }
 

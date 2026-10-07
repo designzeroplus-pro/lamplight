@@ -31,6 +31,9 @@
       const mute = this.ctx.createGain();
       mute.gain.value = 0;
       src.connect(this.node).connect(mute).connect(this.ctx.destination);
+      if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => {});
+      const track = stream.getAudioTracks()[0];
+      window.memo.sttDiag(`ctx=${this.ctx.state} rate=${this.ctx.sampleRate} track=${track?.label} enabled=${track?.enabled} muted=${track?.muted} state=${track?.readyState}`);
       this.handlers.state('starting');
     }
 

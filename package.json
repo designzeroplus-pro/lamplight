@@ -1,6 +1,6 @@
 {
   "name": "lamplight",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "타자기 감성의 회의록 — 직접 타이핑하고, 녹음하고, 램프 아래에서 읽는다",
   "main": "main.js",
   "scripts": {

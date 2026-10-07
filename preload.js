@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('memo', {
   micStatus: () => ipcRenderer.invoke('mic:status'),
   sttStart: (opts) => ipcRenderer.invoke('stt:start', opts),
   sttAudio: (chunk) => ipcRenderer.send('stt:audio', chunk),
+  sttDiag: (msg) => ipcRenderer.send('stt:diag', msg),
   sttStop: () => ipcRenderer.invoke('stt:stop'),
   onStt: (cb) => ipcRenderer.on('stt:event', (_e, ev) => cb(ev)),
 
