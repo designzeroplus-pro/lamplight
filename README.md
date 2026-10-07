@@ -58,24 +58,25 @@ npm run build:native   # 받아쓰기 도구만 다시 빌드
 받아쓰기 언어 · 녹음 후 자동 요약 · 움직임 줄이기(시스템 설정 따르기). 처음 실행하면 권한 안내가 나오고,
 앱 메뉴 › 처음 안내 다시 보기로 다시 열 수 있습니다.
 
-## 배포
+## 배포와 업데이트
+
+내려받기: https://github.com/designzeroplus-pro/lamplight/releases
+
+서명 없는 개인 배포입니다. 처음 열 때 시스템 설정 › 개인정보 보호 및 보안에서 "그래도 열기"를 한 번 누르면 됩니다.
+macOS는 서명된 앱만 스스로 교체할 수 있어서, 앱은 실행할 때(그리고 6시간마다) GitHub의 최신 릴리스를 확인해
+새 버전이 있으면 알려주고 이 Mac에 맞는 DMG를 내려받게 해줍니다. 앱 메뉴 › 업데이트 확인…으로 직접 확인할 수도 있습니다.
+
+새 버전 내보내기:
 
 ```bash
-npm run dist      # dmg + zip (키체인에 Developer ID 인증서가 있으면 자동 서명)
-npm run release   # 서명 + 공증 + GitHub Releases 업로드
+npm version patch --no-git-tag-version   # package.json 버전 올리기 (예: 0.1.0 → 0.1.1)
+npm run dist                              # dist/에 arm64 · Intel DMG (ad-hoc 서명)
+git commit -am "Release v0.1.1" && git push
+gh release create v0.1.1 dist/Lamplight-0.1.1-arm64.dmg dist/Lamplight-0.1.1.dmg --title "Lamplight 0.1.1" --notes "변경 사항"
 ```
 
-1. Apple Developer Program에 가입하고 "Developer ID Application" 인증서를 키체인에 설치합니다.
-2. 공증용 환경 변수: `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`(appleid.apple.com에서 발급), `APPLE_TEAM_ID`
-3. 자동 업데이트: `package.json`의 `build`에 아래를 추가하고 `GH_TOKEN`을 설정합니다.
-   ```json
-   "publish": { "provider": "github", "owner": "<GitHub 계정>", "repo": "lamplight" }
-   ```
-   이렇게 빌드한 앱은 실행할 때 새 버전을 확인해 내려받고, 종료할 때 설치합니다(`electron-updater`).
-   `publish`가 없으면 업데이트 확인은 건너뜁니다.
-
-로컬 확인용 빌드(서명 없음): `npx electron-builder --mac dir --arm64 -c.mac.identity=null` 후
-`codesign --force --deep --sign - dist/mac-arm64/Lamplight.app`
+나중에 Apple Developer ID로 서명·공증하려면 인증서를 키체인에 설치하고 `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
+`APPLE_TEAM_ID`를 설정한 뒤 `npm run release`를 씁니다.
 
 ## 단축키
 
