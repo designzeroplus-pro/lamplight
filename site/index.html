@@ -337,8 +337,8 @@
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 8 4 4 4-4"/></svg>
         </button>
         <div class="dl-menu">
-          <a data-arch="arm64" href="#">Apple Silicon (M1 이후)<small>Lamplight-<span data-ver></span>-arm64.dmg</small></a>
-          <a data-arch="x64" href="#">Intel Mac<small>Lamplight-<span data-ver></span>.dmg</small></a>
+          <a data-arch="arm64" href="#">Apple Silicon (M1 이후)<small data-file="arm64">Apple Silicon용 DMG</small></a>
+          <a data-arch="x64" href="#">Intel Mac<small data-file="x64">Intel용 DMG</small></a>
         </div>
       </div>
       <div class="fineprint">무료 · macOS · 버전 <span data-ver></span></div>
@@ -505,8 +505,8 @@
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 8 4 4 4-4"/></svg>
         </button>
         <div class="dl-menu">
-          <a data-arch="arm64" href="#">Apple Silicon (M1 이후)<small>Lamplight-<span data-ver></span>-arm64.dmg</small></a>
-          <a data-arch="x64" href="#">Intel Mac<small>Lamplight-<span data-ver></span>.dmg</small></a>
+          <a data-arch="arm64" href="#">Apple Silicon (M1 이후)<small data-file="arm64">Apple Silicon용 DMG</small></a>
+          <a data-arch="x64" href="#">Intel Mac<small data-file="x64">Intel용 DMG</small></a>
         </div>
       </div>
       <p class="fineprint">처음 열 때 시스템 설정 › 개인정보 보호 및 보안에서 “그래도 열기”를 한 번 눌러 주세요.<br />새 버전이 나오면 앱이 알려 드려요.</p>
@@ -530,11 +530,31 @@
 
 <script>
   /* ───── downloads ───── */
-  const VERSION = '0.2.0';
-  const REL = `https://github.com/designzeroplus-pro/lamplight/releases/download/v${VERSION}/`;
-  const FILES = { arm64: `Lamplight-${VERSION}-arm64.dmg`, x64: `Lamplight-${VERSION}.dmg` };
-  document.querySelectorAll('[data-ver]').forEach(el => (el.textContent = VERSION));
-  document.querySelectorAll('[data-arch]').forEach(a => (a.href = REL + FILES[a.dataset.arch]));
+  /* Links start at the release page and switch to the DMGs of the latest
+   * GitHub release, so a new release needs no change here. */
+  const REPO = 'designzeroplus-pro/lamplight';
+  function setDownloads(version, urls) {
+    document.querySelectorAll('[data-ver]').forEach(el => (el.textContent = version));
+    document.querySelectorAll('[data-arch]').forEach(a => (a.href = urls[a.dataset.arch]));
+  }
+  const fallback = `https://github.com/${REPO}/releases/latest`;
+  setDownloads('최신', { arm64: fallback, x64: fallback });
+  fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
+    .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then(rel => {
+      const dmgs = rel.assets.filter(a => a.name.endsWith('.dmg'));
+      const arm = dmgs.find(a => a.name.endsWith('-arm64.dmg'));
+      const intel = dmgs.find(a => !a.name.endsWith('-arm64.dmg'));
+      setDownloads(rel.tag_name.replace(/^v/, ''), {
+        arm64: arm ? arm.browser_download_url : fallback,
+        x64: intel ? intel.browser_download_url : fallback,
+      });
+      document.querySelectorAll('[data-file]').forEach(el => {
+        const a = el.dataset.file === 'arm64' ? arm : intel;
+        if (a) el.textContent = a.name;
+      });
+    })
+    .catch(() => {});
   document.querySelectorAll('[data-dl]').forEach(dl => {
     const more = dl.querySelector('.more');
     more.addEventListener('click', e => {
