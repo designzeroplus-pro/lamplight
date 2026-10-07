@@ -1,0 +1,127 @@
+# Lamplight
+
+타자기 감성의 회의록 macOS 앱 (Electron). 직접 타이핑하고, 녹음하고, 어두운 방의 작은 램프 아래에서 읽습니다.
+
+```bash
+npm install        # 받아쓰기 도구(Swift)도 함께 빌드됩니다
+npm start          # 개발 실행
+npm run dist       # .dmg 빌드 (electron-builder)
+npm run build:native   # 받아쓰기 도구만 다시 빌드
+```
+
+## 실시간 받아쓰기
+
+녹음을 시작하면 macOS 내장 음성 인식(`SFSpeechRecognizer`, 가능하면 기기 내 처리)으로 말을 받아 적고,
+문장이 끝날 때마다 `[mm:ss]` 타임스탬프와 함께 타자기처럼 종이에 찍습니다. 독의 말풍선 버튼(⌘⇧T)으로 켜고 끕니다.
+처음 한 번 macOS가 음성 인식 권한을 묻습니다.
+
+- `native/Transcriber.swift` → `native/bin/lamplight-transcriber`: stdin으로 16 kHz PCM을 받고 stdout으로 JSON 줄을 내보내는 헬퍼
+- 개발용 `Electron.app`에는 음성 인식 권한 문구가 없어서, `npm install` 때 `scripts/prepare-dev.js`가 문구를 넣고 ad-hoc 재서명합니다
+  (패키징된 앱은 electron-builder `extendInfo`로 들어갑니다)
+
+## AI 요약 (ChatGPT 구독 · Claude API)
+
+독의 ✦ 버튼(⌘⇧M)을 누르면 메모와 받아쓰기를 읽고 요약 · 결정 사항 · 할 일(`- [ ]`)을 정리해
+회의록 끝에 타자기로 칩니다. 다시 누르면 멈춥니다. 앱 메뉴 › AI 연결에서 둘 중 하나를 고릅니다.
+
+**ChatGPT로 로그인 (Plus · Pro 구독)** — `chatgpt.js`
+- OpenAI의 [Sign in with ChatGPT](https://developers.openai.com/siwc/token-sharing-open-source) 흐름(오픈소스·로컬 앱용 미리보기)을 따릅니다.
+  브라우저에서 `auth.openai.com`에 로그인하면 `http://127.0.0.1:1456/auth/callback`으로 돌아오고(PKCE, state, nonce),
+  처음에는 `dynamic_agent_client`로 등록해 발급된 `client_id`를 다음 로그인에 다시 씁니다.
+- 요약은 Responses API(`store: false`, `stream: true`)로 요청하며 ChatGPT 구독 한도에서 차감됩니다.
+  모델은 계정의 모델 목록에서 고릅니다. 한도 초과나 구독 미지원은 따로 안내합니다.
+- 토큰(1시간, 30일 갱신 토큰)은 `safeStorage`로 암호화해 `chatgpt.bin`(권한 0600)에 저장하고 만료 전에 자동 갱신합니다.
+- 상용으로 배포하려면 OpenAI의 파트너 승인(interest form)이 필요합니다.
+
+**Claude API 키** — `ai.js`
+- `claude-opus-5-5`를 `@anthropic-ai/sdk` 스트리밍으로 호출합니다. 안전 분류기가 거절하면 서버 측 대체 모델로 다시 실행합니다(`fallbacks: "default"`).
+- 키는 `safeStorage`(macOS 키체인)로 암호화해 `anthropic-key.bin`에 저장합니다. 저장된 키가 없으면 `ANTHROPIC_API_KEY`를 씁니다.
+- Claude Pro · Max 개인 구독은 다른 앱에서 쓸 수 없어서(Anthropic 정책) API 키만 지원합니다.
+
+## 녹음 안전장치
+
+녹음은 1초마다 `rec-*.webm.part`로 디스크에 기록됩니다. 앱이 비정상 종료되면 다음 실행 때 자동으로 복구해 녹음 목록에 넣습니다.
+
+## 쓰기
+
+- 목록: `1.` `- ` `- [ ] ` 뒤에서 Enter로 이어 쓰고, 빈 항목에서 Enter를 한 번 더 누르면 끝납니다.
+  Tab / ⇧Tab으로 들여쓰기·내어쓰기, 항목을 지우거나 옮기면 번호를 다시 매깁니다. `[ ]`를 클릭하면 체크됩니다.
+- 가벼운 마크다운: `# 제목`, `**굵게**`, `> 인용` (기호는 흐리게, 글자 폭은 그대로)
+- 잉크: 받아쓴 줄은 푸른 먹색, Claude가 쓴 줄은 세피아. 줄 앞의 보이지 않는 표시(U+2063 / U+2064)로 구분하며,
+  복사·내보내기 때는 빠집니다. ⌘⇧H로 받아쓴 줄을 접어 직접 쓴 글만 볼 수 있습니다(접힌 동안은 읽기 전용).
+- 녹음을 재생하면 램프가 지금 들리는 `[mm:ss]` 줄을 따라가며 비춥니다.
+- 스크롤해서 지난 내용을 읽을 때는 방이 조금 밝아집니다(설정에서 끌 수 있음).
+
+## 설정 (⌘,)
+
+글자 크기 · 레일 위치 · 스크롤할 때 방 밝히기 · 타자기 소리(켜기, 크기, 클래식/부드럽게/묵직하게) ·
+받아쓰기 언어 · 녹음 후 자동 요약 · 움직임 줄이기(시스템 설정 따르기). 처음 실행하면 권한 안내가 나오고,
+앱 메뉴 › 처음 안내 다시 보기로 다시 열 수 있습니다.
+
+## 배포
+
+```bash
+npm run dist      # dmg + zip (키체인에 Developer ID 인증서가 있으면 자동 서명)
+npm run release   # 서명 + 공증 + GitHub Releases 업로드
+```
+
+1. Apple Developer Program에 가입하고 "Developer ID Application" 인증서를 키체인에 설치합니다.
+2. 공증용 환경 변수: `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`(appleid.apple.com에서 발급), `APPLE_TEAM_ID`
+3. 자동 업데이트: `package.json`의 `build`에 아래를 추가하고 `GH_TOKEN`을 설정합니다.
+   ```json
+   "publish": { "provider": "github", "owner": "<GitHub 계정>", "repo": "lamplight" }
+   ```
+   이렇게 빌드한 앱은 실행할 때 새 버전을 확인해 내려받고, 종료할 때 설치합니다(`electron-updater`).
+   `publish`가 없으면 업데이트 확인은 건너뜁니다.
+
+로컬 확인용 빌드(서명 없음): `npx electron-builder --mac dir --arm64 -c.mac.identity=null` 후
+`codesign --force --deep --sign - dist/mac-arm64/Lamplight.app`
+
+## 단축키
+
+| 키 | 동작 |
+| --- | --- |
+| ⌘N | 새 회의록 (지금 보는 폴더에) |
+| ⌘⇧N | 새 폴더 |
+| ⌘⇧T | 실시간 받아쓰기 켜기 / 끄기 |
+| ⌘⇧M | AI 요약 (다시 누르면 멈춤) |
+| ⌘⇧H | 받아쓴 줄 접기 / 펼치기 |
+| Tab / ⇧Tab | 목록 들여쓰기 / 내어쓰기 |
+| ⌘, | 설정 |
+| ⌘K | 모든 회의록 검색 |
+| ⌘F / ⌘G / ⌘⇧G | 이 회의록에서 찾기 / 다음 / 이전 |
+| ⌘⇧R | 녹음 시작 / 정지 |
+| ⌘T | 타임스탬프 삽입 (녹음 중이면 경과 시간, 재생 중이면 재생 위치, 아니면 현재 시각) |
+| ⌘-클릭 | `[mm:ss]` 타임스탬프를 클릭하면 그 지점부터 재생 |
+| ⌘⇧Space | 재생 / 일시정지 |
+| ⌘L | 램프 켜기 / 끄기 |
+| ⌘⇧L | 밤 / 낮 전환 |
+| ⌘⇧S | 타자기 소리 |
+| ⌘\ | 사이드바 |
+| ⌘E | Markdown 내보내기 |
+
+## 구조
+
+```
+main.js            메인 프로세스: 창, 메뉴, 파일 저장, 녹음 스트리밍·복구, 검색, 마이크 권한
+ai.js              AI 요약: 지시문, Claude(API 키) 호출, 제공자 선택
+chatgpt.js         ChatGPT로 로그인(OAuth PKCE, 토큰 갱신) + Responses API 스트리밍
+preload.js         contextBridge로 노출하는 window.memo API
+src/
+  index.html
+  styles.css
+  app.js           화면 조립, 노트 저장/전환, 녹음·재생, 프레임 루프
+  ink-editor.js    투명 textarea + 글자별 span 미러 (잉크 번짐·타격 애니메이션)
+  lamp.js          어둠 캔버스에서 빛 원뿔을 잘라내는 램프 렌더러
+  sound.js         Web Audio로 합성한 타자기 소리 (타건, 스페이스, 캐리지 리턴, 벨)
+  recorder.js      MediaRecorder(webm/opus) + 레벨 미터
+  transcriber.js   마이크 → 16 kHz PCM → 받아쓰기 헬퍼, 부분/확정 문장 이벤트
+  pcm-worklet.js   AudioWorklet 다운샘플러
+native/
+  Transcriber.swift  macOS Speech 프레임워크 받아쓰기 헬퍼
+```
+
+데이터는 `~/Library/Application Support/Lamplight/notes/<id>/`에 저장됩니다.
+`note.json`(본문·폴더), `recordings.json`(녹음 목록), `rec-*.webm`(녹음 파일). 삭제하면 휴지통으로 이동합니다.
+폴더 목록은 `folders.json`, 사이드바 목록 캐시는 `index.json`(노트 파일 수정 시각으로 갱신), 창 크기·위치는 `window.json`에 있습니다.
+폴더를 지우면 안의 회의록은 미분류로 옮겨집니다.

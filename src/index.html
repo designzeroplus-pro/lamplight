@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; font-src 'self';" />
+  <title>Lamplight</title>
+  <link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/700.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dark">
+  <div class="app" id="app">
+    <!-- ───────── sidebar ───────── -->
+    <aside class="sidebar">
+      <div class="sidebar-head drag">
+        <button class="icon nodrag sidebar-toggle" id="sidebarHide" title="사이드바 숨기기 (⌘\)" aria-label="사이드바 숨기기">
+          <svg viewBox="0 0 20 20"><rect x="2.8" y="4.2" width="14.4" height="11.6" rx="2.4"/><path d="M7.8 4.2v11.6"/><path d="M4.8 7.4h1.2M4.8 9.6h1.2"/></svg>
+        </button>
+        <span class="grow"></span>
+        <button class="icon nodrag" id="searchBtn" title="모든 회의록 검색 (⌘K)" aria-label="검색">
+          <svg viewBox="0 0 20 20"><circle cx="8.8" cy="8.8" r="5.3"/><path d="m12.8 12.8 4 4"/></svg>
+        </button>
+        <button class="icon nodrag" id="newNote" title="새 회의록 (⌘N)" aria-label="새 회의록">
+          <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>
+        </button>
+      </div>
+      <div class="sidebar-section">
+        <span>회의록</span>
+        <button class="icon" id="newFolder" title="새 폴더 (⌘⇧N)" aria-label="새 폴더">
+          <svg viewBox="0 0 20 20"><path d="M3 6.5V15a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H9.5L8 5H4a1 1 0 0 0-1 1.5z"/><path d="M10 9.5v4M8 11.5h4"/></svg>
+        </button>
+      </div>
+      <ul class="note-list" id="noteList" aria-label="회의록 목록"></ul>
+    </aside>
+
+    <!-- ───────── stage ───────── -->
+    <main class="stage">
+      <header class="topbar drag">
+        <button class="icon nodrag sidebar-toggle" id="toggleSidebar" title="사이드바 보기 (⌘\)" aria-label="사이드바 보기">
+          <svg viewBox="0 0 20 20"><rect x="2.8" y="4.2" width="14.4" height="11.6" rx="2.4"/><path d="M7.8 4.2v11.6"/><path d="M4.8 7.4h1.2M4.8 9.6h1.2"/></svg>
+        </button>
+        <div class="topbar-center">
+          <span class="rec-badge" id="recBadge"><i></i>REC <b id="recBadgeTime">00:00</b></span>
+          <button class="fold-pill nodrag" id="foldPill" title="받아쓰기 펼치기 (⌘⇧H)"></button>
+        </div>
+        <div class="counter" id="counter">0 / 0</div>
+        <button class="icon nodrag" id="soundToggle" title="타자기 소리 (⌘⇧S)" aria-label="타자기 소리">
+          <svg viewBox="0 0 20 20" class="on"><path d="M4 8h3l4-3v10l-4-3H4z"/><path d="M14 7.5a3.5 3.5 0 0 1 0 5M15.8 5.5a6.2 6.2 0 0 1 0 9"/></svg>
+          <svg viewBox="0 0 20 20" class="off"><path d="M4 8h3l4-3v10l-4-3H4z"/><path d="m14 8 4 4m0-4-4 4"/></svg>
+        </button>
+        <button class="icon nodrag" id="themeToggle" title="밤 / 낮 (⌘⇧L)" aria-label="밤 낮 전환">
+          <svg viewBox="0 0 20 20" class="moon"><path d="M15.5 12.5A6 6 0 0 1 7.5 4.5a6 6 0 1 0 8 8z"/></svg>
+          <svg viewBox="0 0 20 20" class="sun"><circle cx="10" cy="10" r="3.2"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg>
+        </button>
+      </header>
+
+      <div class="desk" id="desk">
+        <div class="scroller" id="scroller">
+          <div class="feed-space" id="feedSpace"></div>
+          <article class="paper" id="paper">
+            <div class="title-wrap">
+              <div class="title-mirror" id="titleMirror" aria-hidden="true"></div>
+              <textarea class="title-input typed" id="title" rows="1" placeholder="제목 없는 회의" spellcheck="false" maxlength="120" aria-label="회의 제목"></textarea>
+            </div>
+            <div class="meta">
+              <span id="date"></span>
+              <span class="sep">·</span>
+              <input class="attendees-input typed" id="attendees" placeholder="참석자" spellcheck="false" aria-label="참석자" />
+            </div>
+            <div class="rule"></div>
+            <div class="editor" id="editor">
+              <div class="mirror" id="mirror" aria-hidden="true"></div>
+              <textarea id="input" spellcheck="false" autocomplete="off" aria-label="회의 내용"
+                placeholder="설렘을 위한 작은 공간.&#10;&#10;잠시 천천히,&#10;오늘의 이야기를 적어보세요."></textarea>
+            </div>
+          </article>
+        </div>
+
+        <canvas class="shade" id="shade"></canvas>
+        <canvas class="glow" id="glow"></canvas>
+
+        <div class="rail" id="rail">
+          <div class="rail-bar"><i class="cap l"></i><i class="cap r"></i></div>
+          <div class="lamp" id="lamp">
+            <div class="lamp-reflect"></div>
+            <svg class="lamp-svg" viewBox="0 0 104 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="lampBody" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#3b3937"/>
+                  <stop offset=".45" stop-color="#242321"/>
+                  <stop offset="1" stop-color="#161514"/>
+                </linearGradient>
+                <linearGradient id="lampStem" x1="0" x2="1">
+                  <stop offset="0" stop-color="#121212"/><stop offset=".5" stop-color="#3a3836"/><stop offset="1" stop-color="#121212"/>
+                </linearGradient>
+                <filter id="ember" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="1.2"/>
+                </filter>
+              </defs>
+              <!-- emitter -->
+              <rect x="50.5" y="5" width="3" height="26" rx="1.5" fill="url(#lampStem)"/>
+              <rect class="bulb-glow" x="38" y="0" width="28" height="5" rx="2.5" filter="url(#ember)"/>
+              <rect x="40" y="2.2" width="24" height="4" rx="2" fill="#1d1c1b"/>
+              <rect class="bulb" x="41.5" y="1.4" width="21" height="2" rx="1"/>
+              <!-- body -->
+              <rect x="16" y="30" width="72" height="26" rx="13" fill="url(#lampBody)"/>
+              <rect x="16.5" y="30.5" width="71" height="25" rx="12.5" fill="none" stroke="rgba(255,255,255,.08)"/>
+              <circle class="led" cx="29" cy="43" r="2"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+        <div class="update-pill" id="updatePill" role="status" hidden>
+          <i></i>
+          <span id="updateText">새 버전이 나왔어요</span>
+          <button class="btn primary" id="updateGet">받기</button>
+          <button class="btn ghost" id="updateLater">나중에</button>
+        </div>
+
+        <div class="findbar" id="findBar" role="search">
+          <span class="find-icon"><svg viewBox="0 0 20 20"><circle cx="8.8" cy="8.8" r="5.3"/><path d="m12.8 12.8 4 4"/></svg></span>
+          <input id="findInput" placeholder="이 회의록에서 찾기" spellcheck="false" autocomplete="off" />
+          <span class="find-count" id="findCount"></span>
+          <button class="icon" id="findPrev" title="이전 (⌘⇧G)" aria-label="이전"><svg viewBox="0 0 20 20"><path d="m6 12 4-4 4 4"/></svg></button>
+          <button class="icon" id="findNext" title="다음 (⌘G)" aria-label="다음"><svg viewBox="0 0 20 20"><path d="m6 8 4 4 4-4"/></svg></button>
+          <button class="icon" id="findClose" title="닫기 (esc)" aria-label="닫기"><svg viewBox="0 0 20 20"><path d="m6 6 8 8M14 6l-8 8"/></svg></button>
+        </div>
+      </div>
+
+      <!-- ───────── dock ───────── -->
+      <div class="dock" id="dock" role="toolbar" aria-label="램프와 녹음">
+        <button class="dock-btn lamp-switch" id="lampSwitch" title="램프 (⌘L)" aria-label="램프 켜기 끄기">
+          <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.6v1.6M10 15.8v1.6M2.6 10h1.6M15.8 10h1.6M4.8 4.8l1.1 1.1M14.1 14.1l1.1 1.1M4.8 15.2l1.1-1.1M14.1 5.9l1.1-1.1"/></svg>
+        </button>
+        <button class="dock-btn" id="lightBtn" title="조명 조절" aria-label="조명 조절" aria-expanded="false">
+          <svg viewBox="0 0 20 20"><path d="M3.5 6h7M14.5 6h2M3.5 14h2M9.5 14h7"/><circle cx="12.5" cy="6" r="2"/><circle cx="7.5" cy="14" r="2"/></svg>
+        </button>
+
+        <div class="dock-sep"></div>
+
+        <button class="dock-btn rec-btn" id="recBtn" title="녹음 (⌘⇧R)" aria-label="녹음"><span></span></button>
+        <span class="rec-time" id="recTime">00:00</span>
+        <canvas class="wave" id="wave"></canvas>
+        <button class="dock-btn stt-btn" id="sttBtn" title="실시간 받아쓰기" aria-label="실시간 받아쓰기">
+          <svg viewBox="0 0 20 20"><path d="M4.5 4.5h11a1.5 1.5 0 0 1 1.5 1.5v6.5a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 2.6V14H4.5A1.5 1.5 0 0 1 3 12.5V6a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M6.5 8h7M6.5 10.8h4.5"/></svg>
+        </button>
+
+        <button class="dock-btn ai-btn" id="aiBtn" title="AI 요약 (⌘⇧M)" aria-label="AI 요약">
+          <svg viewBox="0 0 20 20"><path d="M9 3.5l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M15 12.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>
+        </button>
+
+        <div class="dock-sep player-part"></div>
+
+        <div class="player player-part">
+          <button class="dock-btn" id="playBtn" title="재생 (⌘⇧Space)" aria-label="재생">
+            <svg viewBox="0 0 20 20" class="play"><path d="M7 4.8v10.4l8.2-5.2z"/></svg>
+            <svg viewBox="0 0 20 20" class="pause"><rect x="5.5" y="4.8" width="3" height="10.4" rx="1"/><rect x="11.5" y="4.8" width="3" height="10.4" rx="1"/></svg>
+          </button>
+          <input type="range" class="scrub" id="seek" min="0" max="1000" value="0" aria-label="재생 위치" />
+          <span class="play-time" id="playTime">0:00</span>
+          <button class="rec-menu" id="recMenu" title="녹음 선택 · 삭제" aria-label="녹음 메뉴" aria-haspopup="menu">
+            <span id="recMenuLabel">녹음</span>
+            <svg viewBox="0 0 12 12"><path d="M3.5 4.8 6 7.3l2.5-2.5"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="caption" id="caption" aria-live="polite"><i></i><span id="captionText"></span></div>
+
+      <div class="popover" id="lightPop" role="dialog" aria-label="조명 조절">
+        <div class="pop-row">
+          <div class="pop-head"><span>강도</span><b id="vIntensity">150%</b></div>
+          <input type="range" class="slider" id="intensity" min="50" max="200" step="5" value="150" />
+        </div>
+        <div class="pop-row">
+          <div class="pop-head"><span>퍼짐</span><b id="vSpread">112°</b></div>
+          <input type="range" class="slider" id="spread" min="40" max="160" step="2" value="112" />
+        </div>
+        <div class="pop-row">
+          <div class="pop-head"><span>도달 범위</span><b id="vReach">120%</b></div>
+          <input type="range" class="slider" id="reach" min="50" max="200" step="5" value="120" />
+        </div>
+        <button class="pop-reset" id="lightReset">기본값으로</button>
+      </div>
+    </main>
+  </div>
+
+  <div class="palette-backdrop" id="palette" hidden>
+    <div class="palette" role="dialog" aria-label="회의록 검색">
+      <div class="palette-field">
+        <svg viewBox="0 0 20 20"><circle cx="8.8" cy="8.8" r="5.3"/><path d="m12.8 12.8 4 4"/></svg>
+        <input id="paletteInput" placeholder="회의록 검색 — 제목, 참석자, 내용" spellcheck="false" autocomplete="off" />
+        <kbd>esc</kbd>
+      </div>
+      <div class="palette-label" id="paletteLabel">최근 회의록</div>
+      <ul class="palette-results" id="paletteResults" role="listbox"></ul>
+      <div class="palette-empty" id="paletteEmpty">찾는 내용이 없어요</div>
+    </div>
+  </div>
+
+  <div class="sheet-backdrop" id="keySheet" hidden>
+    <div class="sheet ai-sheet" role="dialog" aria-labelledby="keyTitle">
+      <div class="sheet-icon"><svg viewBox="0 0 20 20"><path d="M9 3.5l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M15 12.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg></div>
+      <h2 id="keyTitle">AI 연결</h2>
+      <p>회의가 끝나면 요약 · 결정 사항 · 할 일을 정리해 종이에 타자기로 쳐 드려요.</p>
+
+      <div class="seg provider" id="aiProvider" role="radiogroup" aria-label="요약에 쓸 AI">
+        <button data-v="chatgpt" role="radio">ChatGPT 구독</button>
+        <button data-v="claude" role="radio">Claude API 키</button>
+      </div>
+
+      <section class="ai-pane" data-pane="chatgpt">
+        <div class="gpt-out">
+          <button class="btn primary wide" id="gptLogin">ChatGPT로 로그인</button>
+          <div class="sheet-status" id="gptStatus">Plus · Pro 구독의 사용 한도 안에서 요약해요. 브라우저에서 로그인합니다.</div>
+        </div>
+        <div class="gpt-in">
+          <div class="gpt-account"><i></i><div><b id="gptEmail"></b><small>ChatGPT에 연결됨</small></div><button class="btn ghost" id="gptLogout">로그아웃</button></div>
+          <div class="set-row gpt-model"><label for="gptModel">모델</label><select id="gptModel"><option value="">불러오는 중…</option></select></div>
+        </div>
+      </section>
+
+      <section class="ai-pane" data-pane="claude">
+        <input type="password" id="keyInput" placeholder="sk-ant-…" spellcheck="false" autocomplete="off" aria-label="Anthropic API 키" />
+        <div class="sheet-status" id="keyStatus"></div>
+        <div class="key-row">
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">키 발급받기</a>
+          <span class="grow"></span>
+          <button class="btn ghost" id="keyClear">저장된 키 삭제</button>
+          <button class="btn primary" id="keySave">키 저장</button>
+        </div>
+      </section>
+
+      <div class="sheet-actions">
+        <span class="grow"></span>
+        <button class="btn" id="keyCancel">닫기</button>
+      </div>
+      <div class="sheet-note" id="aiNote"></div>
+    </div>
+  </div>
+
+  <div class="sheet-backdrop" id="settingsSheet" hidden>
+    <div class="sheet settings" role="dialog" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">설정</h2>
+
+      <div class="set-group">
+        <div class="set-label">종이</div>
+        <div class="set-row"><label for="setFont">글자 크기</label><input type="range" class="slider" id="setFont" min="14" max="22" step="1" /><b id="vFont">17</b></div>
+        <div class="set-row"><label for="setRail">레일 위치</label><input type="range" class="slider" id="setRail" min="45" max="75" step="1" /><b id="vRail">60%</b></div>
+        <div class="set-row"><label for="setReading">스크롤할 때 방 밝히기</label><input type="checkbox" class="switch" id="setReading" /></div>
+        <div class="set-row"><label for="setPointer">마우스를 따라 빛 움직이기</label><input type="checkbox" class="switch" id="setPointer" /></div>
+      </div>
+
+      <div class="set-group">
+        <div class="set-label">타자기 소리</div>
+        <div class="set-row"><label for="setSound">소리</label><input type="checkbox" class="switch" id="setSound" /></div>
+        <div class="set-row"><label for="setVolume">크기</label><input type="range" class="slider" id="setVolume" min="0" max="100" step="5" /><b id="vVolume">70</b></div>
+        <div class="set-row"><span>종류</span>
+          <div class="seg" id="setProfile" role="radiogroup" aria-label="소리 종류">
+            <button data-v="classic" role="radio">클래식</button><button data-v="soft" role="radio">부드럽게</button><button data-v="heavy" role="radio">묵직하게</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="set-group">
+        <div class="set-label">녹음 · 받아쓰기</div>
+        <div class="set-row"><label for="setLocale">받아쓰기 언어</label>
+          <select id="setLocale">
+            <option value="ko-KR">한국어</option><option value="en-US">English</option><option value="ja-JP">日本語</option><option value="zh-CN">中文 (简体)</option>
+          </select>
+        </div>
+        <div class="set-row"><label for="setAutoSummary">녹음이 끝나면 자동으로 요약</label><input type="checkbox" class="switch" id="setAutoSummary" /></div>
+      </div>
+
+      <div class="set-group">
+        <div class="set-label">손쉬운 사용</div>
+        <div class="set-row"><label for="setMotion">움직임 줄이기</label>
+          <select id="setMotion"><option value="system">시스템 설정 따르기</option><option value="on">켬</option><option value="off">끔</option></select>
+        </div>
+      </div>
+
+      <div class="sheet-actions">
+        <button class="btn" id="setKey">AI 연결…</button>
+        <span class="grow"></span>
+        <button class="btn primary" id="setDone">완료</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet-backdrop" id="onboard" hidden>
+    <div class="sheet onboard" role="dialog" aria-labelledby="obTitle">
+      <div class="ob-step" data-step="0">
+        <div class="ob-lamp" aria-hidden="true"><i></i></div>
+        <h2 id="obTitle">작은 램프 아래의 회의록</h2>
+        <p>타자기처럼 한 글자씩 적고, 회의를 녹음하면 말한 내용이 종이 위에 찍혀요. 끝나면 Claude가 요약과 할 일을 정리해 드려요.</p>
+        <ul class="ob-list">
+          <li><b>⌘⇧R</b> 녹음 시작 · 정지</li>
+          <li><b>⌘T</b> 지금 시각 타임스탬프</li>
+          <li><b>⌘K</b> 모든 회의록 검색</li>
+        </ul>
+      </div>
+      <div class="ob-step" data-step="1">
+        <h2>녹음과 받아쓰기 권한</h2>
+        <p>두 가지 권한을 물어볼게요. 녹음 파일은 이 Mac에만 저장되고, 받아쓰기는 가능하면 Mac 안에서 처리돼요.</p>
+        <div class="ob-perm"><span class="ob-perm-icon">🎙</span><div><b>마이크</b><small>회의 소리를 녹음해요</small></div><em id="obMic">확인 중</em></div>
+        <div class="ob-perm"><span class="ob-perm-icon">💬</span><div><b>음성 인식</b><small>말한 내용을 실시간으로 받아 적어요</small></div><em id="obSpeech">확인 중</em></div>
+        <button class="btn primary wide" id="obAllow">권한 허용하기</button>
+      </div>
+      <div class="ob-step" data-step="2">
+        <h2>AI 요약 (선택)</h2>
+        <p>회의가 끝나면 ✦ 버튼으로 요약 · 결정 사항 · 할 일을 받아볼 수 있어요. ChatGPT Plus · Pro 계정으로 로그인하거나 Claude API 키를 연결하세요. 나중에 설정에서 해도 돼요.</p>
+        <button class="btn wide" id="obKey">AI 연결하기</button>
+      </div>
+      <div class="ob-foot">
+        <div class="ob-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <span class="grow"></span>
+        <button class="btn ghost" id="obSkip">건너뛰기</button>
+        <button class="btn primary" id="obNext">다음</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="audio" preload="auto"></audio>
+
+  <script src="../node_modules/fix-webm-duration/fix-webm-duration.js"></script>
+  <script src="sound.js"></script>
+  <script src="ink-editor.js"></script>
+  <script src="lamp.js"></script>
+  <script src="recorder.js"></script>
+  <script src="transcriber.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
