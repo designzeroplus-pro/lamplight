@@ -1,7 +1,7 @@
 # Lamplight
 
 타자기 감성의 macOS 노트 앱 (Electron). 어두운 방의 작은 램프 아래에서 한 글자씩 쓰고,
-다 쓰면 PDF · Markdown으로 내보내거나 ChatGPT로 회의록 · 보고서 · 이메일 같은 형태로 다듬어 내보냅니다.
+다 쓰면 메모장 · 이메일 · 도트 프린터 영수증 같은 레트로 PC 템플릿에 담아 PDF · 이미지 · Markdown으로 내보냅니다.
 
 ```bash
 npm install
@@ -11,9 +11,20 @@ npm run dist       # arm64 · Intel DMG (ad-hoc 서명)
 
 ## 내보내기 (⌘E)
 
-- **원문**: 쓴 그대로 깔끔한 문서로 — PDF(A4, 타자기 글꼴) · Markdown · 복사
-- **AI로 다듬기**: 정리된 회의록 · 보고서 · 이메일 초안 · 한 장 요약 · 할 일 목록 · 발표 개요 · 직접 요청.
-  ChatGPT(로그인) 또는 Claude(API 키)가 Markdown으로 만들고, 미리 본 뒤 PDF · Markdown으로 저장합니다.
+- **레트로 템플릿** (AI 없이도 됨): 노트를 옛날 PC 화면 속 물건으로 바꿔 미리 보고 PDF · 이미지(PNG) · Markdown · 복사로 내보냅니다.
+  PDF와 이미지는 종이(창) 크기에 꼭 맞게 잘리고, 이미지는 2배 해상도(바탕화면은 1080 × 1080)입니다.
+  - **메모장**: 윈도우 95풍 메모장 창
+  - **이메일**: 받는 사람 "미래의 나", 보낸 사람 "오늘의 나"인 새 메시지 창
+  - **오늘의 영수증**: 도트 프린터 연속 용지. `- 품목 ··· 값`으로 쓴 항목은 점선으로 이어짐
+  - **PC통신 게시판**: 파란 화면 게시글
+  - **CRT 터미널**: 초록 형광 모니터에 `TYPE POEM.TXT`
+  - **메시지 상자**: 아이콘과 [확인] 버튼이 있는 알림창
+  - **바탕화면**: 청록 바탕화면에 한 줄을 띄운 SNS용 정사각형 이미지
+- **AI로 어울리게 다듬기** (토글, 기본 꺼짐): 템플릿마다 짝이 있어요 — 메모장은 맞춤법만, 이메일은 미래의 나에게 쓰는 편지로,
+  영수증은 하루를 품목과 값으로, 게시판은 90년대 게시글로, 터미널은 시로, 메시지 상자는 한두 문장으로, 바탕화면은 한 줄로.
+  "더 바라는 점"을 덧붙일 수 있고, 켤 때만 글이 ChatGPT(로그인) 또는 Claude(API 키)로 전송됩니다.
+- 템플릿은 `src/app.js`의 `TEMPLATES`(이름, AI 요청), `src/shared.js`의 `templateHtml`(창 · 머리글 같은 틀),
+  `src/doc.css`의 `.doc[data-template=…]`(모양)로 정의합니다. 픽셀 글꼴은 [갈무리](https://github.com/quiple/galmuri)(OFL)입니다.
 - PDF는 `src/print.html`에 미리보기와 같은 문서 스타일(`src/doc.css`)로 렌더링해 `printToPDF`로 만듭니다.
 
 ## AI 연결 (앱 메뉴 › AI 연결)
@@ -44,7 +55,7 @@ npm run dist       # arm64 · Intel DMG (ad-hoc 서명)
 ## 글꼴 (설정 › 종이 › 글꼴)
 
 타자기(Courier Prime · 나눔고딕코딩, 기본) · KoPub 바탕 · KoPub 돋움 · LINE Seed · 마루 부리.
-`src/fonts/`에 woff2로 들어 있고 `src/fonts.css`에서 등록합니다. 고정폭이 아닌 글꼴에서는 제목·굵게를
+`src/fonts/`에 들어 있고 `src/fonts.css`에서 등록합니다. 글꼴별 저작권과 라이선스 원문은 [src/fonts/README.md](src/fonts/README.md)에 있습니다. 고정폭이 아닌 글꼴에서는 제목·굵게를
 글자 굵기 대신 잉크를 두껍게 그려 표시합니다(미러와 textarea의 글자 폭이 어긋나지 않도록).
 LINE Seed · 마루 부리는 Bold 한 가지 굵기만 들어 있어 본문도 Bold로 보입니다.
 
@@ -95,7 +106,7 @@ gh release create v0.1.1 dist.noindex/Lamplight-0.1.1-arm64.dmg dist.noindex/Lam
 | ⌘⌥⌫ | 노트를 휴지통으로 |
 | ⌘⇧S | 타자기 소리 |
 | ⌘\ | 사이드바 |
-| ⌘E | 내보내기 (PDF · Markdown · AI 정리) |
+| ⌘E | 내보내기 (레트로 템플릿 · PDF · 이미지 · Markdown) |
 
 ## 구조
 
@@ -107,7 +118,7 @@ preload.js         contextBridge로 노출하는 window.memo API
 src/
   index.html
   styles.css
-  shared.js        메인·화면·테스트가 같이 쓰는 순수 함수 (미리보기, 정렬, Markdown 렌더러, 번호 다시 매기기, 버전 비교)
+  shared.js        메인·화면·테스트가 같이 쓰는 순수 함수 (미리보기, 정렬, Markdown 렌더러, 템플릿 렌더링, 번호 다시 매기기, 버전 비교)
   app.js           화면 조립, 노트 저장/전환, 폴더, 검색, 내보내기, 프레임 루프
   doc.css          내보내기 문서 스타일 (미리보기 · PDF 공용)
   print.html       PDF 렌더링 템플릿
