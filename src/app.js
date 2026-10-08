@@ -82,8 +82,6 @@
    * the textarea and the mirror change over in the same frame. */
   const PAPER_FONTS = {
     typewriter: null,
-    'kopub-batang': 'Lamp KoPub Batang',
-    'kopub-dotum': 'Lamp KoPub Dotum',
     lineseed: 'Lamp LINE Seed',
     maruburi: 'Lamp MaruBuri',
   };

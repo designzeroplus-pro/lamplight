@@ -54,7 +54,7 @@ npm run dist       # arm64 · Intel DMG (ad-hoc 서명)
 
 ## 글꼴 (설정 › 종이 › 글꼴)
 
-타자기(Courier Prime · 나눔고딕코딩, 기본) · KoPub 바탕 · KoPub 돋움 · LINE Seed · 마루 부리.
+타자기(Courier Prime · 나눔고딕코딩, 기본) · LINE Seed · 마루 부리.
 `src/fonts/`에 들어 있고 `src/fonts.css`에서 등록합니다. 글꼴별 저작권과 라이선스 원문은 [src/fonts/README.md](src/fonts/README.md)에 있습니다. 고정폭이 아닌 글꼴에서는 제목·굵게를
 글자 굵기 대신 잉크를 두껍게 그려 표시합니다(미러와 textarea의 글자 폭이 어긋나지 않도록).
 LINE Seed · 마루 부리는 Bold 한 가지 굵기만 들어 있어 본문도 Bold로 보입니다.
