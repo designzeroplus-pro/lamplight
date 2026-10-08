@@ -2,7 +2,12 @@
  * A real <textarea> handles input (Korean IME, undo, selection, clipboard) with
  * transparent text. Underneath it, a mirror renders every character as its own
  * span so each strike can land with a little ink jitter, like a typewriter.
- * Edits are diffed and patched into the mirror, so typing stays O(edit). */
+ * Edits are diffed and patched into the mirror, so typing stays O(edit).
+ *
+ * The spans are grouped into one block per text line (each ending with its
+ * own "\n" span; a block's trailing newline adds no extra line). An edit
+ * rebuilds only the lines it touches, so the browser re-lays out those lines
+ * instead of the whole note as one giant run of inline boxes. */
 (function () {
   const STAMP_RE = /\[(?:\d{1,2}:)?\d{1,2}:\d{2}\]/g;
   const BOLD_RE = /\*\*(?=\S)(.+?)(?<=\S)\*\*/g;
@@ -21,11 +26,14 @@
       this.lastEdit = null;
       this.listeners = new Set();
       this.hitEls = [];
+      this.lines = [];  // one block per text line; the last one holds the sentinel
 
       this.sentinel = document.createElement('span');
       this.sentinel.className = 'sentinel';
       this.sentinel.textContent = '​';
-      mirror.appendChild(this.sentinel);
+      this.lines = [this.newLine()];
+      this.lines[0].appendChild(this.sentinel);
+      mirror.replaceChildren(this.lines[0]);
 
       textarea.addEventListener('input', () => this.sync());
       mirror.addEventListener('animationend', (e) => {
@@ -37,13 +45,34 @@
 
     get value() { return this.text; }
 
+    newLine() {
+      const el = document.createElement('div');
+      el.className = 'ln';
+      return el;
+    }
+
+    /* Blocks for the spans of text[a, b), split after each newline. `b` is
+     * either just past a "\n" or the end of the text, so this makes exactly
+     * one block per line in the range. */
+    buildLines(a, b) {
+      const out = [this.newLine()];
+      for (let i = a; i < b; i++) {
+        out[out.length - 1].appendChild(this.spans[i]);
+        if (this.text.charCodeAt(i) === 10 && i < b - 1) out.push(this.newLine());
+      }
+      return out;
+    }
+
     setText(text) {
       this.ta.value = text;
       this.text = text;
       this.spans = this.makeSpans(text, '');
+      this.lines = this.buildLines(0, text.length);
+      // Text ending in "\n" has one more (empty) line after it.
+      if (text.endsWith('\n')) this.lines.push(this.newLine());
+      this.lines[this.lines.length - 1].appendChild(this.sentinel);
       const frag = document.createDocumentFragment();
-      this.spans.forEach((s) => frag.appendChild(s));
-      frag.appendChild(this.sentinel);
+      this.lines.forEach((el) => frag.appendChild(el));
       this.mirror.replaceChildren(frag);
       this.recolor(0, text.length);
       this.lastEdit = null;
@@ -99,16 +128,29 @@
       if (inserted.length && inserted.length <= 3) cls = removed ? 'restrike' : 'strike';
       const fresh = this.makeSpans(inserted, cls);
 
-      const dropped = this.spans.slice(p, p + removed);
-      dropped.forEach((el) => el.remove());
       this.spans = this.spans.slice(0, p).concat(fresh, this.spans.slice(p + removed));
-
-      const ref = this.spans[p + fresh.length] || this.sentinel;
-      const frag = document.createDocumentFragment();
-      fresh.forEach((el) => frag.appendChild(el));
-      this.mirror.insertBefore(frag, ref);
-
       this.text = next;
+
+      // Lines L0..L1 of the old text become L0..L0+k of the new one.
+      let L0 = 0;
+      for (let i = 0; i < p; i++) if (prev.charCodeAt(i) === 10) L0++;
+      let L1 = L0;
+      for (let i = p; i < p + removed; i++) if (prev.charCodeAt(i) === 10) L1++;
+      const a = p === 0 ? 0 : next.lastIndexOf('\n', p - 1) + 1;
+      const nl = next.indexOf('\n', p + inserted.length);
+      const b = nl === -1 ? next.length : nl + 1;
+      const freshLines = this.buildLines(a, b);
+      // The edit reached the end and left a trailing "\n": add the empty last line.
+      if (nl === -1 && next.endsWith('\n')) freshLines.push(this.newLine());
+      const old = this.lines.slice(L0, L1 + 1);
+      const after = this.lines[L1 + 1] || null;
+      if (!after) freshLines[freshLines.length - 1].appendChild(this.sentinel);
+      old.forEach((el) => el.remove());
+      const frag = document.createDocumentFragment();
+      freshLines.forEach((el) => frag.appendChild(el));
+      this.mirror.insertBefore(frag, after);
+      this.lines = this.lines.slice(0, L0).concat(freshLines, this.lines.slice(L1 + 1));
+
       this.recolor(p, p + inserted.length);
       this.lastEdit = {
         type: inserted.length && !removed ? 'insert' : !inserted.length ? 'delete' : 'replace',

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/400.css" />
   <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/700.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="doc.css" />
 </head>
 <body class="dark">
@@ -225,7 +226,23 @@
       <h2 id="settingsTitle">설정</h2>
 
       <div class="set-group">
+        <div class="set-label">화면</div>
+        <div class="set-row"><label for="setTheme">밤 / 낮</label>
+          <select id="setTheme"><option value="system">시스템 설정 따르기</option><option value="dark">밤</option><option value="light">낮</option></select>
+        </div>
+      </div>
+
+      <div class="set-group">
         <div class="set-label">종이</div>
+        <div class="set-row"><label for="setFamily">글꼴</label>
+          <select id="setFamily">
+            <option value="typewriter">타자기 (Courier Prime)</option>
+            <option value="kopub-batang">KoPub 바탕</option>
+            <option value="kopub-dotum">KoPub 돋움</option>
+            <option value="lineseed">LINE Seed</option>
+            <option value="maruburi">마루 부리</option>
+          </select>
+        </div>
         <div class="set-row"><label for="setFont">글자 크기</label><input type="range" class="slider" id="setFont" min="14" max="22" step="1" /><b id="vFont">17</b></div>
         <div class="set-row"><label for="setRail">레일 위치</label><input type="range" class="slider" id="setRail" min="45" max="75" step="1" /><b id="vRail">60%</b></div>
         <div class="set-row"><label for="setReading">스크롤할 때 방 밝히기</label><input type="checkbox" class="switch" id="setReading" /></div>
@@ -319,6 +336,7 @@
     </div>
   </div>
 
+  <script src="shared.js"></script>
   <script src="sound.js"></script>
   <script src="ink-editor.js"></script>
   <script src="lamp.js"></script>

@@ -134,8 +134,9 @@ async function signIn() {
     });
     if (reuse && prev.idToken) params.set('id_token_hint', prev.idToken);
 
+    let timer = null;
     const callback = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new GptError('timeout', 'sign-in timed out')), SIGN_IN_TIMEOUT);
+      timer = setTimeout(() => reject(new GptError('timeout', 'sign-in timed out')), SIGN_IN_TIMEOUT);
       server.on('request', (req, res) => {
         const url = new URL(req.url, redirectUri);
         if (url.pathname !== '/auth/callback') { res.writeHead(404).end(); return; }
@@ -152,6 +153,10 @@ async function signIn() {
         else resolve(q);
       });
     });
+
+    // If we bail out before awaiting it (e.g. the browser didn't open), its
+    // later rejection must not surface as an unhandled one.
+    callback.catch(() => {});
 
     try {
       await shell.openExternal(`${AUTH}/api/accounts/authorize?${params}`);
@@ -190,6 +195,7 @@ async function signIn() {
       await saveCreds(creds);
       return status(creds);
     } finally {
+      clearTimeout(timer);
       server.close();
     }
   })();
@@ -212,13 +218,24 @@ function status(creds) {
   return { signedIn: true, email: creds.email, name: creds.name, model: creds.model || null };
 }
 
-// A valid access token, refreshing it when it's about to expire.
+/* A valid access token, refreshing it when it's about to expire. Refreshes
+ * are single-flight: refresh tokens rotate, so two at once would leave one
+ * holding a spent token (invalid_grant) and sign the person out. */
+let refreshing = null;
+
 async function ensureAccess(force = false) {
+  if (refreshing) return refreshing;
   const creds = await loadCreds();
   if (!creds?.refreshToken) throw new GptError('login', 'not signed in');
   const now = Date.now();
   if (!force && creds.expiresAt - 60000 > now) return creds;
   if (!force && creds.earliestRefreshAt && now < creds.earliestRefreshAt && creds.expiresAt > now) return creds;
+  if (refreshing) return refreshing; // another caller started one while we read
+  refreshing = refresh(creds).finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+async function refresh(creds) {
   try {
     const tok = await tokenRequest({
       grant_type: 'refresh_token',
@@ -264,9 +281,13 @@ async function listModels() {
   if (!res.ok) throw await apiError(res);
   const body = await res.json();
   const items = body.data || body.models || [];
+  // The account's own default (when it marks one) comes first, so it's picked
+  // when no model has been chosen yet.
   return items
     .filter((m) => (m.visibility ?? 'list') === 'list')
-    .map((m) => ({ slug: m.slug || m.id, name: m.display_name || m.slug || m.id }));
+    .map((m) => ({ slug: m.slug || m.id, name: m.display_name || m.slug || m.id, preferred: !!(m.is_default || m.default) }))
+    .sort((a, b) => b.preferred - a.preferred)
+    .map(({ slug, name }) => ({ slug, name }));
 }
 
 async function setModel(slug) {

@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('memo', {
   deleteNote: (id) => ipcRenderer.invoke('notes:delete', id),
   searchNotes: (q) => ipcRenderer.invoke('notes:search', q),
   setNoteFolder: (id, folderId) => ipcRenderer.invoke('notes:set-folder', id, folderId),
+  setNotePinned: (id, pinned) => ipcRenderer.invoke('notes:set-pinned', id, pinned),
+  confirm: (opts) => ipcRenderer.invoke('dialog:confirm', opts),
+  backupExport: () => ipcRenderer.invoke('backup:export'),
+  backupImport: () => ipcRenderer.invoke('backup:import'),
 
   listFolders: () => ipcRenderer.invoke('folders:list'),
   saveFolders: (folders) => ipcRenderer.invoke('folders:save', folders),

@@ -19,6 +19,7 @@
   const LAMP_OFFSET = 52;   // lamp rides just to the right of the caret
   const BELL_AT = 0.86;     // ring the margin bell near the end of a line
 
+  const { previewOf, sortNotes, mdToHtml, renumberList } = window.LampShared;
   const sound = new TypeSound();
   const editor = new InkEditor(input, $('mirror'));
   const titleInk = new InkEditor(titleEl, $('titleMirror'));
@@ -32,18 +33,32 @@
     intensity: 150, spread: 112, reach: 120,
     lampOn: true, theme: 'dark', sound: true, volume: 0.7, sidebar: true, looseCollapsed: false,
     fontSize: 17, railRatio: 60, readingLight: true, soundProfile: 'classic',
-    motion: 'system', onboarded: false, aiProvider: 'chatgpt',
+    motion: 'system', onboarded: false, aiProvider: 'chatgpt', sortBy: 'updated', paperFont: 'typewriter',
   };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
   const persist = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {} };
 
-  function applyTheme() {
-    const dark = settings.theme !== 'light';
+  /* 'system' follows macOS: the window's theme source is set to system and
+   * the main process reports whether that's dark right now. */
+  const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const isDark = () => body.classList.contains('dark');
+
+  function paintTheme(dark) {
     body.classList.toggle('dark', dark);
     body.classList.toggle('light', !dark);
     lamp.setDark(dark);
-    window.memo.setTheme(dark ? 'dark' : 'light');
   }
+
+  async function applyTheme() {
+    if (settings.theme === 'system') {
+      paintTheme(await window.memo.setTheme('system'));
+    } else {
+      const dark = settings.theme !== 'light';
+      paintTheme(dark);
+      window.memo.setTheme(dark ? 'dark' : 'light');
+    }
+  }
+  darkQuery.addEventListener('change', (e) => { if (settings.theme === 'system') paintTheme(e.matches); });
 
   function applyLamp() {
     lamp.setOn(settings.lampOn);
@@ -61,6 +76,33 @@
   function applyPaper() {
     root.style.setProperty('--type-size', `${settings.fontSize}px`);
     lastH = 0; // re-lay the rail and paper margins next frame
+  }
+
+  /* The writing font (fonts.css). Its faces are loaded before switching so
+   * the textarea and the mirror change over in the same frame. */
+  const PAPER_FONTS = {
+    typewriter: null,
+    'kopub-batang': 'Lamp KoPub Batang',
+    'kopub-dotum': 'Lamp KoPub Dotum',
+    lineseed: 'Lamp LINE Seed',
+    maruburi: 'Lamp MaruBuri',
+  };
+  async function applyFont() {
+    if (!(settings.paperFont in PAPER_FONTS)) settings.paperFont = 'typewriter';
+    const family = PAPER_FONTS[settings.paperFont];
+    const want = settings.paperFont;
+    if (family) {
+      try {
+        await Promise.all([
+          document.fonts.load(`400 17px "${family}"`, '가A'),
+          document.fonts.load(`700 17px "${family}"`, '가A'),
+        ]);
+      } catch {}
+      if (settings.paperFont !== want) return; // picked another one meanwhile
+    }
+    body.dataset.font = want;
+    lastH = 0; // re-lay the rail and follow the caret's new position
+    snap = true;
   }
 
   const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -187,21 +229,13 @@
   let dirty = false;
   let saveTimer = null;
 
-  // Sidebar preview: plain words, without ink markers or markdown punctuation.
-  const previewOf = (text) => (text || '')
-    .replace(MARKS_RE, '')
-    .replace(/^#{1,3} |^> /gm, '')
-    .replace(/\*\*/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 80);
-
   const summary = (n) => ({
     id: n.id,
     title: n.title || '',
     createdAt: n.createdAt,
     updatedAt: n.updatedAt || Date.now(),
     folderId: n.folderId || null,
+    pinned: !!n.pinned,
     preview: previewOf(n.body),
   });
 
@@ -209,6 +243,7 @@
 
   const FOLDER_ICON = '<svg viewBox="0 0 20 20"><path d="M2.8 6.2V15a1.2 1.2 0 0 0 1.2 1.2h12a1.2 1.2 0 0 0 1.2-1.2V8.2A1.2 1.2 0 0 0 16 7H9.6L8 5H4a1.2 1.2 0 0 0-1.2 1.2z"/></svg>';
   const CHEV_ICON = '<svg viewBox="0 0 12 12"><path d="M3.5 4.6 6 7.1l2.5-2.5"/></svg>';
+  const PIN_ICON = '<svg viewBox="0 0 12 12"><path d="M4 1h4l-.6 3.4L9.5 6.5v1H6.5V11L6 11.5 5.5 11V7.5h-3v-1l2.1-2.1z"/></svg>';
   const PLUS_ICON = '<svg viewBox="0 0 20 20"><path d="M10 5v10M5 10h10"/></svg>';
   const NOTE_MIME = 'application/x-lamplight-note';
 
@@ -236,6 +271,13 @@
 
     const meta = document.createElement('div');
     meta.className = 'note-meta';
+    if (n.pinned) {
+      const pin = document.createElement('span');
+      pin.className = 'pin';
+      pin.title = '고정됨';
+      pin.innerHTML = PIN_ICON;
+      meta.appendChild(pin);
+    }
     const d = document.createElement('span');
     d.textContent = fmtListDate(n.updatedAt);
     meta.appendChild(d);
@@ -328,12 +370,13 @@
   function renderList() {
     if (renaming) { renderPending = true; return; }
     const frag = document.createDocumentFragment();
+    const sorted = sortNotes(notes, settings.sortBy);
     if (!folders.length) {
-      notes.forEach((n) => frag.appendChild(noteItem(n)));
+      sorted.forEach((n) => frag.appendChild(noteItem(n)));
     } else {
       const groups = new Map(folders.map((f) => [f.id, []]));
       const loose = [];
-      for (const n of notes) {
+      for (const n of sorted) {
         const f = folderOf(n);
         (f ? groups.get(f) : loose).push(n);
       }
@@ -410,10 +453,12 @@
     const f = folders.find((x) => x.id === id);
     if (!f) return;
     const inside = notes.filter((n) => n.folderId === id);
-    const msg = inside.length
-      ? `'${f.name}' 폴더를 삭제할까요?\n안에 있는 노트 ${inside.length}개는 미분류로 옮겨집니다.`
-      : `'${f.name}' 폴더를 삭제할까요?`;
-    if (!window.confirm(msg)) return;
+    const ok = await window.memo.confirm({
+      message: `'${f.name}' 폴더를 삭제할까요?`,
+      detail: inside.length ? `안에 있는 노트 ${inside.length}개는 미분류로 옮겨집니다.` : '',
+      confirm: '폴더 삭제',
+    });
+    if (!ok) return;
     await Promise.all(inside.map((n) => window.memo.setNoteFolder(n.id, null)));
     inside.forEach((n) => { n.folderId = null; });
     if (current?.folderId === id) current.folderId = null;
@@ -450,11 +495,13 @@
         ],
       },
       { id: 'new-folder-move', label: '새 폴더로 이동…' },
+      { id: 'pin', label: n.pinned ? '고정 해제' : '맨 위에 고정' },
       { type: 'separator' },
       { id: 'delete', label: '휴지통으로 이동' },
     ]);
     if (!pick) return;
     if (pick === 'open') openNote(n.id);
+    else if (pick === 'pin') pinNote(n.id, !n.pinned);
     else if (pick === 'delete') deleteNote(n.id);
     else if (pick === 'new-folder-move') {
       await newFolder();
@@ -472,11 +519,36 @@
     else if (pick === 'delete') deleteFolder(id);
   }
 
+  async function pinNote(id, pinned) {
+    const n = notes.find((x) => x.id === id);
+    if (!n) return;
+    if (current?.id === id) { await saveNow(); current.pinned = pinned; }
+    await window.memo.setNotePinned(id, pinned);
+    n.pinned = pinned;
+    renderList();
+    toast(pinned ? '맨 위에 고정했어요' : '고정을 풀었어요');
+  }
+
+  const SORT_LABELS = { updated: '수정한 날짜', created: '만든 날짜', title: '제목' };
+
   noteList.addEventListener('contextmenu', async (e) => {
     e.preventDefault();
-    const pick = await window.memo.contextMenu([{ id: 'new-folder', label: '새 폴더' }, { id: 'new-note', label: '새 노트' }]);
+    const pick = await window.memo.contextMenu([
+      { id: 'new-folder', label: '새 폴더' },
+      { id: 'new-note', label: '새 노트' },
+      { type: 'separator' },
+      {
+        label: '정렬',
+        submenu: Object.entries(SORT_LABELS).map(([v, label]) => ({ id: `sort:${v}`, label, checked: settings.sortBy === v })),
+      },
+    ]);
     if (pick === 'new-folder') newFolder();
     else if (pick === 'new-note') newNote(null);
+    else if (pick?.startsWith('sort:')) {
+      settings.sortBy = pick.slice(5);
+      persist();
+      renderList();
+    }
   });
 
   // Dropping on blank sidebar space files the note under 미분류.
@@ -563,13 +635,18 @@
   async function deleteNote(id) {
     const n = notes.find((x) => x.id === id);
     const name = n?.title || '제목 없는 노트';
-    if (!window.confirm(`'${name}' 노트를 휴지통으로 옮길까요?`)) return;
+    const ok = await window.memo.confirm({
+      message: `'${name}' 노트를 휴지통으로 옮길까요?`,
+      detail: 'Finder의 휴지통에서 되살릴 수 있어요.',
+      confirm: '휴지통으로 이동',
+    });
+    if (!ok) return;
     if (current?.id === id) { clearTimeout(saveTimer); dirty = false; }
     await window.memo.deleteNote(id);
     notes = notes.filter((x) => x.id !== id);
     if (current?.id === id) {
       current = null;
-      if (notes.length) await openNote(notes[0].id);
+      if (notes.length) await openNote(sortNotes(notes, settings.sortBy)[0].id);
       else await newNote();
     } else {
       renderList();
@@ -596,8 +673,14 @@
   titleEl.addEventListener('input', () => {
     current.title = titleEl.value;
     scheduleSave();
+    // Only this row's title changes; the rest of the list stays as it is.
     const s = notes.find((n) => n.id === current.id);
-    if (s) { s.title = current.title; renderList(); }
+    if (!s) return;
+    s.title = current.title;
+    const row = noteList.querySelector(`.note[data-id="${current.id}"] .note-title`);
+    if (!row || settings.sortBy === 'title') { renderList(); return; }
+    row.textContent = s.title || '제목 없는 노트';
+    row.classList.toggle('untitled', !s.title);
   });
   attendeesEl.addEventListener('input', () => {
     current.attendees = attendeesEl.value;
@@ -656,64 +739,18 @@
     renumber(input.selectionStart);
   }
 
-  /* Ordered lists keep counting: after an item is added, removed or moved,
-   * numbers in the surrounding list are rewritten (one undo step). Nested
-   * levels start at 1; the first top-level item keeps whatever number it has. */
-  const ITEM_RE = /^(\s*)(?:(\d{1,3})([.)])|([-*•]))(?=\s)/;
+  /* Ordered lists keep counting (see renumberList in shared.js); the rewrite
+   * goes through execCommand so it's one undo step. */
+  const ITEM_RE = window.LampShared.ITEM_RE;
 
   function renumber(at) {
-    const v = input.value;
-    const lineAt = (i) => v.lastIndexOf('\n', i - 1) + 1;
-    let start = lineAt(Math.min(at, v.length));
-    let end = v.indexOf('\n', start);
-    if (end === -1) end = v.length;
-    const isItem = (a, b) => ITEM_RE.test(v.slice(a, b));
-    if (!isItem(start, end)) return;
-    while (start > 0) {
-      const ps = lineAt(start - 1);
-      if (!isItem(ps, start - 1)) break;
-      start = ps;
-    }
-    while (end < v.length) {
-      let ne = v.indexOf('\n', end + 1);
-      if (ne === -1) ne = v.length;
-      if (!isItem(end + 1, ne)) break;
-      end = ne;
-    }
-    const block = v.slice(start, end);
-    const lines = block.split('\n');
-    const minIndent = Math.min(...lines.map((l) => l.match(ITEM_RE)[1].length));
-    const counters = new Map();
-    let changed = false;
-    let caretShift = 0;
-    let pos = start;
-    const caret = input.selectionStart;
-    const out = lines.map((line) => {
-      const m = line.match(ITEM_RE);
-      const indent = m[1].length;
-      for (const k of [...counters.keys()]) if (k > indent) counters.delete(k);
-      let next = line;
-      if (m[2]) {
-        if (!counters.has(indent)) counters.set(indent, indent > minIndent ? 1 : Number(m[2]));
-        const want = String(counters.get(indent));
-        counters.set(indent, Number(want) + 1);
-        if (want !== m[2]) {
-          next = m[1] + want + line.slice(m[1].length + m[2].length);
-          if (pos + m[1].length < caret) caretShift += want.length - m[2].length;
-          changed = true;
-        }
-      } else {
-        counters.delete(indent);
-      }
-      pos += line.length + 1;
-      return next;
-    });
-    if (!changed) return;
+    const r = renumberList(input.value, at, input.selectionStart);
+    if (!r) return;
     applyingMarker = true;
     try {
-      input.setSelectionRange(start, end);
-      document.execCommand('insertText', false, out.join('\n'));
-      input.setSelectionRange(caret + caretShift, caret + caretShift);
+      input.setSelectionRange(r.start, r.end);
+      document.execCommand('insertText', false, r.text);
+      input.setSelectionRange(r.caret, r.caret);
     } finally {
       applyingMarker = false;
     }
@@ -1010,54 +1047,6 @@
 - 결과는 Markdown으로만 씁니다: # / ## / ### 제목, 목록(- , 1. ), 체크박스(- [ ] ), **굵게**, > 인용, --- 구분선. 표와 HTML은 쓰지 않습니다.
 - 노트에 없는 사실은 만들지 않습니다. 모르는 담당자·기한은 비워 둡니다.
 - 결과물만 쓰고, 앞뒤 설명이나 인사는 붙이지 않습니다.`;
-
-  /* A small Markdown renderer for the preview and the PDF: headings, lists
-   * (nested by indent), checkboxes, quotes, rules, bold/italic/code. Text is
-   * escaped first, so nothing in a note or a model answer can inject HTML. */
-  function mdToHtml(md) {
-    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const inline = (t) => esc(t)
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*])\*(?=\S)([^*]+?)(?<=\S)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/\[((?:\d{1,2}:)?\d{1,2}:\d{2})\]/g, '<span class="stamp">[$1]</span>');
-    const out = [];
-    let para = [];
-    let list = null; // { type, depth }
-    const stack = [];
-    const flushPara = () => { if (para.length) { out.push(`<p>${para.map(inline).join('<br>')}</p>`); para = []; } };
-    const closeLists = (depth = -1) => { while (stack.length && stack[stack.length - 1].depth > depth) out.push(`</${stack.pop().type}>`); };
-    for (const raw of String(md).replace(/\r/g, '').split('\n')) {
-      const line = raw.replace(MARKS_RE, '');
-      let m;
-      if (!line.trim()) { flushPara(); closeLists(); continue; }
-      if ((m = line.match(/^(#{1,3})\s+(.*)$/))) { flushPara(); closeLists(); out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`); continue; }
-      if (/^\s*(-{3,}|\*{3,}|─{3,}.*)\s*$/.test(line)) { flushPara(); closeLists(); out.push('<hr>'); continue; }
-      if ((m = line.match(/^>\s?(.*)$/))) { flushPara(); closeLists(); out.push(`<blockquote>${inline(m[1])}</blockquote>`); continue; }
-      if ((m = line.match(/^(\s*)([-*•]|\d{1,3}[.)])\s+(.*)$/))) {
-        flushPara();
-        const depth = Math.floor(m[1].replace(/\t/g, '  ').length / 2);
-        const type = /\d/.test(m[2]) ? 'ol' : 'ul';
-        closeLists(depth);
-        if (!stack.length || stack[stack.length - 1].depth < depth || stack[stack.length - 1].type !== type) {
-          if (stack.length && stack[stack.length - 1].depth === depth) out.push(`</${stack.pop().type}>`);
-          out.push(`<${type}>`);
-          stack.push({ type, depth });
-        }
-        let text = m[3];
-        let box = '';
-        const c = text.match(/^\[([ xX])\]\s+(.*)$/);
-        if (c) { box = c[1] === ' ' ? '<span class="box">☐</span> ' : '<span class="box on">☑</span> '; text = c[2]; }
-        out.push(`<li${c ? ' class="task"' : ''}>${box}${inline(text)}</li>`);
-        continue;
-      }
-      closeLists();
-      para.push(line);
-    }
-    flushPara();
-    closeLists();
-    return out.join('\n');
-  }
 
   function showDoc(md) {
     preview.innerHTML = mdToHtml(md);
@@ -1525,7 +1514,8 @@
     sound.play('back');
   }
   function toggleTheme() {
-    settings.theme = settings.theme === 'light' ? 'dark' : 'light';
+    // From 'system' this picks the opposite of what's showing, explicitly.
+    settings.theme = isDark() ? 'light' : 'dark';
     applyTheme();
     persist();
   }
@@ -1562,9 +1552,12 @@
       case 'timestamp': {
         const d = new Date();
         input.focus();
-        editor.insert(`(${pad(d.getHours())}:${pad(d.getMinutes())}) `);
+        // Bracketed, so the editor and PDF ink it like any other timestamp.
+        editor.insert(`[${pad(d.getHours())}:${pad(d.getMinutes())}] `);
         return sound.play('char');
       }
+      case 'backup': return backupNotes();
+      case 'restore': return restoreNotes();
       case 'ai-key': return openKeySheet(false);
       case 'settings': return openSettings();
       case 'onboarding': return openOnboarding();
@@ -1586,6 +1579,26 @@
 
   window.addEventListener('blur', () => { saveNow(); });
 
+  /* ───────── backup ───────── */
+
+  async function backupNotes() {
+    await saveNow();
+    const res = await window.memo.backupExport();
+    if (res) toast(`노트 ${res.count}개를 백업했어요`);
+  }
+
+  async function restoreNotes() {
+    await saveNow();
+    const res = await window.memo.backupImport();
+    if (!res) return;
+    if (res.error) { toast('Lamplight 백업 파일이 아니에요'); return; }
+    [notes, folders] = await Promise.all([window.memo.listNotes(), window.memo.listFolders()]);
+    renderList();
+    toast(res.added
+      ? `노트 ${res.added}개를 가져왔어요${res.skipped ? ` · 이미 있는 ${res.skipped}개는 건너뜀` : ''}`
+      : '새로 가져올 노트가 없어요 (모두 이미 있어요)', 4000);
+  }
+
   /* ───────── settings ───────── */
 
   const settingsSheet = $('settingsSheet');
@@ -1601,6 +1614,8 @@
   }
 
   function syncSettingsForm() {
+    $('setTheme').value = settings.theme;
+    $('setFamily').value = settings.paperFont;
     $('setFont').value = settings.fontSize;
     $('vFont').textContent = settings.fontSize;
     $('setRail').value = settings.railRatio;
@@ -1625,6 +1640,8 @@
   }
 
   const onSetting = (id, ev, fn) => $(id).addEventListener(ev, (e) => { fn(e.target); syncSettingsForm(); persist(); });
+  onSetting('setTheme', 'change', (el) => { settings.theme = el.value; applyTheme(); });
+  onSetting('setFamily', 'change', (el) => { settings.paperFont = el.value; applyFont(); });
   onSetting('setFont', 'input', (el) => { settings.fontSize = Number(el.value); applyPaper(); });
   onSetting('setRail', 'input', (el) => { settings.railRatio = Number(el.value); applyPaper(); });
   onSetting('setReading', 'change', (el) => { settings.readingLight = el.checked; });
@@ -1757,6 +1774,7 @@
     paintFibers();
     applyTheme();
     applyPaper();
+    await applyFont();
     applyMotion();
     applySound();
     applySidebar();
@@ -1766,7 +1784,7 @@
     applyLamp();
 
     [notes, folders] = await Promise.all([window.memo.listNotes(), window.memo.listFolders()]);
-    if (notes.length) await openNote(notes[0].id);
+    if (notes.length) await openNote(sortNotes(notes, settings.sortBy)[0].id);
     else await newNote();
     requestAnimationFrame(frame);
     if (!settings.onboarded) setTimeout(openOnboarding, 900);

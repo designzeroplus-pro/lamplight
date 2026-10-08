@@ -4,3 +4,4 @@ dist.noindex/
 native/bin/
 .DS_Store
 *.tmp
+.claude/settings.local.json

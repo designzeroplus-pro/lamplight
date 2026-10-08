@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test",
     "postinstall": "node scripts/prepare-dev.js",
     "dist": "node scripts/prepare-dev.js && electron-builder --mac dmg --arm64 --x64 -c.mac.identity=-",
     "release": "node scripts/prepare-dev.js && electron-builder --mac dmg --arm64 --x64 -c.mac.notarize=true"

@@ -8,6 +8,7 @@ const fsSync = require('node:fs');
 const crypto = require('node:crypto');
 const ai = require('./ai');
 const chatgpt = require('./chatgpt');
+const { previewOf, isNewer } = require('./src/shared');
 
 let win = null;
 let readyToClose = false;
@@ -28,7 +29,8 @@ async function readJSON(file, fallback) {
 }
 
 async function writeJSON(file, data) {
-  const tmp = `${file}.${process.pid}.tmp`;
+  // A unique temp name, so two saves of the same file can't trip over each other.
+  const tmp = `${file}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf8');
   await fs.rename(tmp, file);
 }
@@ -61,14 +63,22 @@ async function summarize(id) {
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     folderId: cleanFolderId(note.folderId),
-    preview: (note.body || '')
-      .replace(/[\u2063\u2064]/g, '')
-      .replace(/^#{1,3} |^> /gm, '')
-      .replace(/\*\*/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 80),
+    pinned: !!note.pinned,
+    preview: previewOf(note.body),
   };
+}
+
+/* Parsed notes for full-text search, re-read only when the file's mtime changes. */
+const noteCache = new Map(); // id → { m, note }
+
+async function readNoteCached(id) {
+  const file = path.join(notesRoot(), id, 'note.json');
+  const m = await statMs(file);
+  const hit = noteCache.get(id);
+  if (hit && hit.m === m) return hit.note;
+  const note = await readJSON(file, null);
+  noteCache.set(id, { m, note });
+  return note;
 }
 
 ipcMain.handle('notes:list', async () => {
@@ -101,9 +111,11 @@ ipcMain.handle('notes:search', async (_e, q) => {
   if (!terms.length) return [];
   let dirs = [];
   try { dirs = await fs.readdir(notesRoot(), { withFileTypes: true }); } catch { return []; }
+  const live = new Set(dirs.map((d) => d.name));
+  for (const id of noteCache.keys()) if (!live.has(id)) noteCache.delete(id);
   const results = [];
-  await Promise.all(dirs.filter((d) => d.isDirectory()).map(async (d) => {
-    const note = await readJSON(path.join(notesRoot(), d.name, 'note.json'), null);
+  await Promise.all(dirs.filter((d) => d.isDirectory() && /^[a-z0-9-]{6,64}$/i.test(d.name)).map(async (d) => {
+    const note = await readNoteCached(d.name);
     if (!note) return;
     const title = note.title || '';
     const body = note.body || '';
@@ -163,11 +175,20 @@ ipcMain.handle('notes:load', async (_e, id) => {
 ipcMain.handle('notes:save', async (_e, note) => {
   const dir = noteDir(note.id);
   await fs.mkdir(dir, { recursive: true });
-  const { id, title, attendees, body, folderId, createdAt } = note;
+  const { id, title, attendees, body, folderId, pinned, createdAt } = note;
   await writeJSON(path.join(dir, 'note.json'), {
     id, title: String(title || ''), attendees: String(attendees || ''), body: String(body || ''),
-    folderId: cleanFolderId(folderId), createdAt, updatedAt: Date.now(),
+    folderId: cleanFolderId(folderId), pinned: !!pinned, createdAt, updatedAt: Date.now(),
   });
+  return true;
+});
+
+ipcMain.handle('notes:set-pinned', async (_e, id, pinned) => {
+  const file = path.join(noteDir(id), 'note.json');
+  const note = await readJSON(file, null);
+  if (!note) return false;
+  note.pinned = !!pinned;
+  await writeJSON(file, note);
   return true;
 });
 
@@ -218,6 +239,19 @@ ipcMain.handle('context:menu', (e, items) => new Promise((resolve) => {
   });
 }));
 
+/* A native confirmation sheet. Resolves true when the first button is picked. */
+ipcMain.handle('dialog:confirm', async (e, { message, detail, confirm }) => {
+  const { response } = await dialog.showMessageBox(BrowserWindow.fromWebContents(e.sender), {
+    type: 'warning',
+    message: String(message || ''),
+    detail: detail ? String(detail) : undefined,
+    buttons: [String(confirm || '확인'), '취소'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  return response === 0;
+});
+
 ipcMain.handle('notes:delete', async (_e, id) => {
   // Move to the macOS Trash so it can be restored.
   await shell.trashItem(noteDir(id));
@@ -228,8 +262,8 @@ ipcMain.handle('notes:delete', async (_e, id) => {
 
 ipcMain.handle('export:note', async (_e, { name, content }) => {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: '회의록 내보내기',
-    defaultPath: path.join(app.getPath('documents'), `${name || '회의록'}.md`),
+    title: 'Markdown으로 내보내기',
+    defaultPath: path.join(app.getPath('documents'), `${name || '노트'}.md`),
     filters: [{ name: 'Markdown', extensions: ['md'] }, { name: 'Text', extensions: ['txt'] }],
   });
   if (canceled || !filePath) return null;
@@ -308,7 +342,11 @@ function buildMenu() {
         { label: '새 폴더', accelerator: 'CmdOrCtrl+Shift+N', click: () => sendMenu('new-folder') },
         { label: '내보내기…', accelerator: 'CmdOrCtrl+E', click: () => sendMenu('export') },
         { type: 'separator' },
-        { label: '휴지통으로 이동', accelerator: 'CmdOrCtrl+Backspace', click: () => sendMenu('delete') },
+        { label: '모든 노트 백업…', click: () => sendMenu('backup') },
+        { label: '백업에서 가져오기…', click: () => sendMenu('restore') },
+        { type: 'separator' },
+        // ⌘⌫ is left to the text field (delete to line start).
+        { label: '휴지통으로 이동', accelerator: 'CmdOrCtrl+Alt+Backspace', click: () => sendMenu('delete') },
         { type: 'separator' },
         { role: 'close' },
       ],
@@ -405,13 +443,17 @@ function createWindow() {
   win.once('ready-to-show', () => win.show());
 
   // Give the renderer a moment to flush unsaved text before closing.
+  let closeTimer = null;
   win.on('close', (e) => {
     if (readyToClose) return;
     e.preventDefault();
     sendMenu('flush-and-close');
-    setTimeout(() => { readyToClose = true; win?.close(); }, 10000);
+    clearTimeout(closeTimer);
+    const w = win;
+    closeTimer = setTimeout(() => { if (!w.isDestroyed()) { readyToClose = true; w.close(); } }, 10000);
   });
   win.on('closed', () => {
+    clearTimeout(closeTimer);
     win = null;
     readyToClose = false;
     if (quitting) app.quit();
@@ -438,13 +480,6 @@ function repoSlug() {
   return m ? `${m[1]}/${m[2]}` : null;
 }
 
-function isNewer(a, b) {
-  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
-  return false;
-}
-
 async function checkForUpdates() {
   const slug = repoSlug();
   if (!slug) return { error: 'no-repo' };
@@ -467,13 +502,138 @@ async function checkForUpdates() {
   }
 }
 
+/* ───────────── backup / restore ─────────────
+ * A backup is a folder with lamplight-backup.json (every note and folder, as
+ * stored) plus a readable .md copy of each note. Restoring adds the notes and
+ * folders that aren't here yet; notes that already exist are left alone. */
+
+const BACKUP_FILE = 'lamplight-backup.json';
+const safeName = (s) => String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+async function allNotes() {
+  let dirs = [];
+  try { dirs = await fs.readdir(notesRoot(), { withFileTypes: true }); } catch { return []; }
+  const list = await Promise.all(dirs
+    .filter((d) => d.isDirectory() && /^[a-z0-9-]{6,64}$/i.test(d.name))
+    .map((d) => readJSON(path.join(notesRoot(), d.name, 'note.json'), null)));
+  return list.filter(Boolean);
+}
+
+function noteAsMarkdown(n) {
+  const d = new Date(n.createdAt || Date.now());
+  const pad = (x) => String(x).padStart(2, '0');
+  const date = `${d.getFullYear()}. ${pad(d.getMonth() + 1)}. ${pad(d.getDate())}. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const meta = [date, n.attendees].filter(Boolean).join(' · ');
+  return `# ${n.title || '제목 없는 노트'}\n\n${meta}\n\n---\n\n${String(n.body || '').replace(/[\u2063\u2064]/g, '')}\n`;
+}
+
+ipcMain.handle('backup:export', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: '백업을 저장할 폴더 고르기',
+    buttonLabel: '여기에 백업',
+    defaultPath: app.getPath('documents'),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (canceled || !filePaths?.[0]) return null;
+  const d = new Date();
+  const pad = (x) => String(x).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}${pad(d.getMinutes())}`;
+  let dir = path.join(filePaths[0], `Lamplight 백업 ${stamp}`);
+  for (let i = 2; fsSync.existsSync(dir); i++) dir = path.join(filePaths[0], `Lamplight 백업 ${stamp} (${i})`);
+
+  const notes = await allNotes();
+  const folders = await readJSON(foldersFile(), []);
+  const mdRoot = path.join(dir, '노트');
+  await fs.mkdir(mdRoot, { recursive: true });
+  await fs.writeFile(path.join(dir, BACKUP_FILE), JSON.stringify({
+    app: 'Lamplight', version: 1, appVersion: app.getVersion(), exportedAt: Date.now(), folders, notes,
+  }, null, 2), 'utf8');
+
+  const used = new Set();
+  for (const n of notes) {
+    const folder = folders.find((f) => f.id === n.folderId);
+    const sub = folder ? path.join(mdRoot, safeName(folder.name) || '폴더') : mdRoot;
+    const base = safeName(n.title) || '제목 없는 노트';
+    let file = path.join(sub, `${base}.md`);
+    for (let i = 2; used.has(file); i++) file = path.join(sub, `${base} (${i}).md`);
+    used.add(file);
+    await fs.mkdir(sub, { recursive: true });
+    await fs.writeFile(file, noteAsMarkdown(n), 'utf8');
+  }
+  shell.showItemInFolder(path.join(dir, BACKUP_FILE));
+  return { path: dir, count: notes.length };
+});
+
+ipcMain.handle('backup:import', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: '가져올 백업 고르기',
+    buttonLabel: '가져오기',
+    defaultPath: app.getPath('documents'),
+    filters: [{ name: 'Lamplight 백업', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || !filePaths?.[0]) return null;
+  const data = await readJSON(filePaths[0], null);
+  if (!data || data.app !== 'Lamplight' || !Array.isArray(data.notes)) return { error: 'format' };
+
+  const folders = await readJSON(foldersFile(), []);
+  const known = new Set(folders.map((f) => f.id));
+  let addedFolders = 0;
+  for (const f of Array.isArray(data.folders) ? data.folders : []) {
+    if (!cleanFolderId(f?.id) || known.has(f.id)) continue;
+    folders.push({
+      id: f.id, name: String(f.name || '').slice(0, 60) || '새 폴더', collapsed: !!f.collapsed, createdAt: Number(f.createdAt) || Date.now(),
+    });
+    known.add(f.id);
+    addedFolders++;
+  }
+  if (addedFolders) {
+    await fs.mkdir(app.getPath('userData'), { recursive: true });
+    await writeJSON(foldersFile(), folders);
+  }
+
+  let added = 0;
+  let skipped = 0;
+  for (const n of data.notes) {
+    if (typeof n?.id !== 'string' || !/^[a-z0-9-]{6,64}$/i.test(n.id)) { skipped++; continue; }
+    const dir = noteDir(n.id);
+    if (fsSync.existsSync(path.join(dir, 'note.json'))) { skipped++; continue; }
+    await fs.mkdir(dir, { recursive: true });
+    const now = Date.now();
+    await writeJSON(path.join(dir, 'note.json'), {
+      id: n.id,
+      title: String(n.title || ''),
+      attendees: String(n.attendees || ''),
+      body: String(n.body || ''),
+      folderId: cleanFolderId(n.folderId),
+      pinned: !!n.pinned,
+      createdAt: Number(n.createdAt) || now,
+      updatedAt: Number(n.updatedAt) || now,
+    });
+    added++;
+  }
+  return { added, skipped, folders: addedFolders };
+});
+
 ipcMain.handle('update:check', () => checkForUpdates());
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('update:open', (_e, url) => {
   if (/^https:\/\/github\.com\//.test(String(url))) shell.openExternal(url);
 });
 
+// One Lamplight at a time: a second launch just brings the window forward,
+// so two copies never write the same notes.
+const primary = app.requestSingleInstanceLock();
+if (!primary) app.quit();
+app.on('second-instance', () => {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+});
+
 app.whenReady().then(() => {
+  if (!primary) return;
   if (process.platform === 'darwin' && !app.isPackaged) {
     // In development the stock Electron.app would otherwise show its own icon.
     app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
