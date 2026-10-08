@@ -110,3 +110,22 @@ test('templateHtml picks one desktop line: quote first, then the body', () => {
   assert.match(templateHtml('desktop', '# 비\n\n날짜 1\n\n---\n\n첫 문단\n\n둘째'), /len-l"><p>첫 문단<\/p>/);
   assert.match(templateHtml('desktop', '그냥 한 줄', { title: '제목' }), /<p>그냥 한 줄<\/p>[\s\S]*<i class="dt-task">제목<\/i>/);
 });
+
+test('templateHtml lays a note on paper: title, body, date', () => {
+  const html = templateHtml('lt-lined', '# 비 <오는> 날\n\n2026. 10. 08.\n\n---\n\n안녕.\n\n— 오늘의 나', {});
+  assert.match(html, /<p class="lt-heading">비 &lt;오는&gt; 날<\/p>/);
+  assert.match(html, /<div class="lt-body"><p>안녕\.<\/p>\n<p class="sign">— 오늘의 나<\/p><\/div>/);
+  assert.match(html, /<p class="lt-date">2026\. 10\. 08\.<\/p><\/div>$/);
+  assert.doesNotMatch(html, /<h1>|<hr>/);
+  assert.match(templateHtml('lt-lined', '본문', { title: '<제목>', date: '2026.10.08' }), /lt-heading">&lt;제목&gt;<\/p>[\s\S]*lt-date">2026\.10\.08</);
+});
+
+test('templateHtml puts every 원고지 character in its own square', () => {
+  const html = templateHtml('lt-genko', '비 와&요', {});
+  assert.match(html, /<div class="lt-body"><p><i><\/i><i>비<\/i><i><\/i><i>와<\/i><i>&amp;<\/i><i>요<\/i><\/p><\/div>/);
+});
+
+test('templateHtml stamps the wax seal and monogram with the first letter of the title', () => {
+  assert.match(templateHtml('lt-wax', '# kim\n\n본문'), />K<\/text>/);
+  assert.match(templateHtml('lt-gold', '본문', {}), /<div class="lt-monogram"><span>L<\/span><\/div>/);
+});

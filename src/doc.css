@@ -353,3 +353,251 @@
 .doc[data-template='desktop'] .dt-clock { margin-left: auto; padding: 3px 8px; box-shadow: inset 1px 1px var(--w-sh), inset -1px -1px var(--w-hi); }
 
 .doc[data-template] .hint { margin: 40px 0; padding: 0 16px; text-align: center; font: 13px 'Lamp Galmuri', sans-serif; color: inherit; opacity: 0.7; }
+
+/* ───────── paper ─────────
+ * Title / body / date on stationery, with decorations as inline SVG.
+ * Every block keeps to whole lines (--lh) so writing sits on ruled paper. */
+.doc[data-template^='lt-'] {
+  --ink: #2c3446;
+  --lh: 40px;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .2 0 0 0 .08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  position: relative;
+  width: 560px;
+  min-height: 780px;
+  padding: 72px 64px 64px;
+  overflow: hidden;
+  font-family: 'Nanum Pen Script', 'Nanum Gothic Coding', cursive;
+  font-size: 26px;
+  line-height: var(--lh);
+  color: var(--ink);
+  background: var(--grain), #fffdf7;
+  font-synthesis: none;
+}
+.doc[data-template^='lt-'] > svg { position: absolute; z-index: 0; pointer-events: none; }
+.doc[data-template^='lt-'] .lt-sheet { position: relative; z-index: 1; }
+.doc[data-template^='lt-'] .lt-heading { margin: 0 0 var(--lh); font-size: 1.2em; }
+.doc[data-template^='lt-'] .lt-body p,
+.doc[data-template^='lt-'] .lt-body ul,
+.doc[data-template^='lt-'] .lt-body ol,
+.doc[data-template^='lt-'] .lt-body blockquote { margin: 0 0 var(--lh); }
+.doc[data-template^='lt-'] .lt-body h1,
+.doc[data-template^='lt-'] .lt-body h2,
+.doc[data-template^='lt-'] .lt-body h3 { margin: 0; font-size: 1.08em; font-weight: inherit; }
+.doc[data-template^='lt-'] .lt-body strong { font-weight: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+.doc[data-template^='lt-'] .lt-body blockquote { padding-left: 0.8em; border-left: 2px solid color-mix(in srgb, currentColor 30%, transparent); }
+.doc[data-template^='lt-'] .lt-body ul { padding-left: 1.2em; }
+.doc[data-template^='lt-'] .lt-body hr { height: var(--lh); margin: 0; background: none; text-align: center; }
+.doc[data-template^='lt-'] .lt-body hr::before { content: '~  ~  ~'; opacity: 0.45; }
+.doc[data-template^='lt-'] .lt-body .sign { text-align: right; }
+.doc[data-template^='lt-'] .stamp { color: inherit; opacity: 0.6; }
+.doc[data-template^='lt-'] .lt-date { margin: var(--lh) 0 0; text-align: right; font-size: 0.86em; opacity: 0.7; }
+.doc[data-template^='lt-'] .lt-title { position: absolute; z-index: 1; left: 0; right: 0; margin: 0; text-align: center; font: 600 46px/1 'Caveat', cursive; }
+.doc[data-template^='lt-'] .hint { position: relative; z-index: 1; font: inherit; opacity: 0.55; }
+
+/* 줄 노트: blue rules, a red double margin, binder holes. */
+.doc[data-template='lt-lined'] {
+  --ink: #2b3a6b;
+  padding-left: 96px;
+  background:
+    linear-gradient(90deg, transparent 74px, rgba(214, 92, 92, 0.45) 74px 75px, transparent 75px 78px, rgba(214, 92, 92, 0.45) 78px 79px, transparent 79px),
+    var(--grain),
+    linear-gradient(transparent calc(var(--lh) - 1px), rgba(96, 128, 186, 0.32) calc(var(--lh) - 1px)) 0 61px / 100% var(--lh),
+    #fffdf6;
+}
+.doc[data-template='lt-lined'] .lt-holes {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 22px;
+  width: 22px;
+  background: radial-gradient(circle 9px at 11px 11px, #e6dfd0 0 7px, rgba(90, 70, 40, 0.22) 8px, transparent 9.5px) 0 96px / 22px 200px repeat-y;
+}
+
+/* 크래프트지: brown paper, fold lines, a faded post stamp. */
+.doc[data-template='lt-kraft'] {
+  --ink: #3a2616;
+  background:
+    linear-gradient(transparent calc(33.3% - 1px), rgba(70, 40, 10, 0.1) calc(33.3% - 1px), rgba(255, 240, 210, 0.25) 33.4%, transparent calc(33.4% + 2px)),
+    linear-gradient(transparent calc(66.6% - 1px), rgba(70, 40, 10, 0.1) calc(66.6% - 1px), rgba(255, 240, 210, 0.25) 66.7%, transparent calc(66.7% + 2px)),
+    var(--grain), var(--grain),
+    radial-gradient(ellipse at 30% 20%, #d9b77d, #c59c5e 70%, #b78c50);
+}
+.doc[data-template='lt-kraft'] .lt-stamp { top: 26px; right: 30px; color: rgba(150, 44, 32, 0.5); transform: rotate(-14deg); }
+
+/* 원고지: a red-brown grid, one character per square. */
+.doc[data-template='lt-genko'] {
+  --ink: #2a2a2a;
+  padding: 64px 56px 76px;
+  font-size: 24px;
+  background: var(--grain), #fbf9f2;
+}
+.doc[data-template='lt-genko'] .lt-sheet {
+  min-height: 616px;
+  line-height: 32px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='44'%3E%3Cpath d='M0 .5H32M0 32.5H32M.5 0V33' stroke='%23d79a8c' fill='none'/%3E%3C/svg%3E") 0 0 / 32px 44px;
+  box-shadow: 1px 0 0 #d79a8c;
+}
+.doc[data-template='lt-genko'] .lt-sheet i { display: inline-block; width: 32px; height: 32px; margin-bottom: 12px; vertical-align: top; text-align: center; font-style: normal; line-height: 35px; }
+.doc[data-template='lt-genko'] .lt-sheet p,
+.doc[data-template='lt-genko'] .lt-body ul,
+.doc[data-template='lt-genko'] .lt-body ol,
+.doc[data-template='lt-genko'] .lt-body blockquote { margin: 0; padding: 0; border: 0; list-style: none; }
+.doc[data-template='lt-genko'] .lt-heading { margin-bottom: 44px; font-size: inherit; }
+.doc[data-template='lt-genko'] .lt-date { margin-top: 44px; font-size: inherit; opacity: 0.75; }
+.doc[data-template='lt-genko']::after { content: '14 × 14'; position: absolute; right: 56px; bottom: 44px; font: 11px 'Gowun Batang', serif; letter-spacing: 0.2em; color: #c98a7c; }
+
+/* 항공우편: striped airmail edge, PAR AVION label, a stamp. */
+.doc[data-template='lt-airmail'] {
+  --ink: #1f2f57;
+  padding: 16px;
+  background: repeating-linear-gradient(-45deg, #d0393b 0 16px, #fffdf8 16px 26px, #2a4c9c 26px 42px, #fffdf8 42px 52px);
+}
+.doc[data-template='lt-airmail'] .lt-sheet { min-height: 748px; padding: 136px 50px 50px; background: var(--grain), #fffdf8; }
+.doc[data-template='lt-airmail'] .lt-avion { position: absolute; z-index: 2; top: 50px; left: 50px; padding: 5px 12px 4px; border: 2px solid #2a4c9c; color: #2a4c9c; font: 700 15px/1.3 'Courier Prime', monospace; letter-spacing: 0.22em; transform: rotate(-3deg); }
+.doc[data-template='lt-airmail'] .lt-avion span { display: block; font-size: 9px; letter-spacing: 0.12em; }
+.doc[data-template='lt-airmail'] .lt-postage { z-index: 2; top: 40px; right: 48px; transform: rotate(4deg); }
+
+/* 생일: bunting, confetti, a script greeting. */
+.doc[data-template='lt-birthday'] {
+  --ink: #5b3b5e;
+  padding-top: 160px;
+  font-family: 'Gaegu', 'Nanum Pen Script', cursive;
+  font-size: 23px;
+  background:
+    radial-gradient(circle 4px at 8% 30%, #f6a5b5 98%, transparent),
+    radial-gradient(circle 3px at 93% 26%, #ffd27a 98%, transparent),
+    radial-gradient(circle 5px at 90% 52%, #9fd8c8 98%, transparent),
+    radial-gradient(circle 3px at 5% 62%, #b8b2f0 98%, transparent),
+    radial-gradient(circle 4px at 95% 80%, #f6a5b5 98%, transparent),
+    radial-gradient(circle 3px at 10% 90%, #ffd27a 98%, transparent),
+    radial-gradient(circle 4px at 60% 96%, #b8b2f0 98%, transparent),
+    radial-gradient(circle 3px at 30% 97%, #9fd8c8 98%, transparent),
+    var(--grain),
+    linear-gradient(#fff8f3, #fff0f4);
+}
+.doc[data-template='lt-birthday'] .lt-bunting { top: 0; left: 0; }
+.doc[data-template='lt-birthday'] .lt-title { top: 86px; color: #e0748c; }
+
+/* 크리스마스: holly, a red-and-green inner frame. */
+.doc[data-template='lt-xmas'] {
+  --ink: #23452f;
+  padding-top: 160px;
+  background: var(--grain), #fffaf0;
+  box-shadow: inset 0 0 0 12px #fffaf0, inset 0 0 0 14px #b83226, inset 0 0 0 18px #fffaf0, inset 0 0 0 19px #2f6b45;
+}
+.doc[data-template='lt-xmas'] .lt-holly-l { top: 22px; left: 22px; }
+.doc[data-template='lt-xmas'] .lt-holly-r { top: 22px; right: 22px; }
+.doc[data-template='lt-xmas'] .lt-title { top: 88px; color: #b83226; }
+
+/* 벚꽃: a blossoming branch and falling petals. */
+.doc[data-template='lt-spring'] {
+  --ink: #6a3a4a;
+  padding-top: 150px;
+  background: var(--grain), linear-gradient(170deg, #fff7f8, #fdeef1 60%, #fff8f5);
+}
+.doc[data-template='lt-spring'] .lt-branch { top: 0; right: 0; }
+.doc[data-template='lt-spring'] .lt-petals { top: 0; left: 0; width: 100%; height: auto; }
+
+/* 가을 낙엽: maple and ginkgo in the corners. */
+.doc[data-template='lt-autumn'] {
+  --ink: #5a361b;
+  padding-top: 120px;
+  background: var(--grain), linear-gradient(#fdf6e8, #f8ecd6);
+}
+.doc[data-template='lt-autumn'] .lt-leaves-t { top: -6px; right: -6px; }
+.doc[data-template='lt-autumn'] .lt-leaves-b { bottom: -6px; left: -6px; }
+
+/* 감사: a carnation and a script "Thank you". */
+.doc[data-template='lt-thanks'] {
+  --ink: #5e2a2a;
+  padding-top: 150px;
+  padding-bottom: 150px;
+  background: var(--grain), linear-gradient(#fcf5ec, #f8eee2);
+}
+.doc[data-template='lt-thanks'] .lt-title { top: 70px; left: 64px; text-align: left; color: #c94a5a; }
+.doc[data-template='lt-thanks'] .lt-carnation { bottom: 12px; left: 18px; }
+
+/* 마스킹테이프: grid paper, washi tape, stickers. */
+.doc[data-template='lt-tape'] {
+  --ink: #3f4a66;
+  padding-top: 104px;
+  font-family: 'Gaegu', 'Nanum Pen Script', cursive;
+  font-size: 23px;
+  background:
+    linear-gradient(rgba(120, 160, 210, 0.2) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, rgba(120, 160, 210, 0.2) 1px, transparent 1px) 0 0 / 20px 20px,
+    var(--grain), #fdfdfb;
+}
+.doc[data-template='lt-tape'] .lt-washi {
+  position: absolute;
+  z-index: 2;
+  width: 160px;
+  height: 34px;
+  opacity: 0.88;
+  clip-path: polygon(3% 0, 97% 0, 100% 18%, 97% 36%, 100% 54%, 97% 72%, 100% 100%, 3% 100%, 0 82%, 3% 64%, 0 46%, 3% 28%, 0 10%);
+}
+.doc[data-template='lt-tape'] .lt-washi-l { top: 22px; left: -30px; transform: rotate(-33deg); background: repeating-linear-gradient(45deg, #ffb9c4 0 8px, #ffd8de 8px 16px); }
+.doc[data-template='lt-tape'] .lt-washi-r { top: 26px; right: -32px; transform: rotate(30deg); background: radial-gradient(circle 3px, #fff 90%, transparent) 0 0 / 12px 12px, #8fd3c7; }
+.doc[data-template='lt-tape'] .lt-stickers-t { top: 18px; right: 150px; }
+.doc[data-template='lt-tape'] .lt-stickers-b { bottom: 20px; left: 36px; }
+
+/* 색연필: crayon sun, cloud and hearts. */
+.doc[data-template='lt-crayon'] {
+  --ink: #3a3a3a;
+  padding-top: 140px;
+  font-family: 'Gaegu', 'Nanum Pen Script', cursive;
+  font-weight: 700;
+  font-size: 23px;
+  background: var(--grain), #fffefb;
+}
+.doc[data-template='lt-crayon'] .lt-doodle-sun { top: 12px; right: 16px; }
+.doc[data-template='lt-crayon'] .lt-doodle-cloud { top: 40px; left: 40px; }
+.doc[data-template='lt-crayon'] .lt-doodle-hearts { bottom: 18px; left: 36px; }
+
+/* 코튼지 & 실링왁스: heavy paper, batang type, a wax seal. */
+.doc[data-template='lt-wax'] {
+  --ink: #2b2622;
+  --lh: 36px;
+  padding: 92px 76px 160px;
+  font-family: 'Gowun Batang', serif;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+  background: var(--grain), var(--grain), radial-gradient(ellipse at 50% 40%, #fbf8f1, #efe8db);
+  box-shadow: inset 0 0 50px rgba(120, 100, 70, 0.14);
+}
+.doc[data-template='lt-wax'] .lt-seal { bottom: 42px; left: 50%; margin-left: -48px; filter: drop-shadow(0 3px 3px rgba(80, 10, 10, 0.35)); }
+
+/* 금박 테두리: an ivory card with a gold frame and monogram. */
+.doc[data-template='lt-gold'] {
+  --ink: #3a3226;
+  --lh: 36px;
+  padding: 156px 84px 96px;
+  font-family: 'Gowun Batang', serif;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+  background: var(--grain), #fcf9f1;
+  box-shadow: inset 0 0 0 20px #fcf9f1, inset 0 0 0 21.5px #c9a24e, inset 0 0 0 26px #fcf9f1, inset 0 0 0 27px #e0c47f;
+}
+.doc[data-template='lt-gold'] .lt-corner { width: 44px; height: 44px; }
+.doc[data-template='lt-gold'] .lt-corner-tl { top: 14px; left: 14px; }
+.doc[data-template='lt-gold'] .lt-corner-tr { top: 14px; right: 14px; transform: scaleX(-1); }
+.doc[data-template='lt-gold'] .lt-corner-bl { bottom: 14px; left: 14px; transform: scaleY(-1); }
+.doc[data-template='lt-gold'] .lt-corner-br { bottom: 14px; right: 14px; transform: scale(-1); }
+.doc[data-template='lt-gold'] .lt-monogram {
+  position: absolute;
+  z-index: 1;
+  top: 58px;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin-left: -31px;
+  border: 1px solid #c9a24e;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 4px #fcf9f1, inset 0 0 0 5px #e2c98a;
+  font: italic 700 30px/1 'Cormorant Garamond', 'Gowun Batang', serif;
+  color: #b08a3a;
+}
+.doc[data-template='lt-wax'] .lt-heading,
+.doc[data-template='lt-gold'] .lt-heading { text-align: center; font-weight: 700; letter-spacing: 0.06em; }

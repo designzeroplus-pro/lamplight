@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, ipcMain, nativeTheme, shell, dialog,
-  systemPreferences, session, Menu, screen,
+  systemPreferences, session, Menu, screen, ShareMenu,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -274,7 +274,11 @@ ipcMain.handle('export:note', async (_e, { name, content }) => {
 /* PDF / PNG: the export preview's HTML is laid into print.html (same fonts
  * and document styles), rendered off-screen and cut to the paper itself —
  * each template is a window, a strip or a screen of its own size. */
-const TEMPLATES = ['notepad', 'mail', 'receipt', 'bbs', 'terminal', 'msgbox', 'desktop'];
+const TEMPLATES = [
+  'lt-lined', 'lt-kraft', 'lt-genko', 'lt-airmail', 'lt-birthday', 'lt-xmas', 'lt-spring', 'lt-autumn',
+  'lt-thanks', 'lt-tape', 'lt-crayon', 'lt-wax', 'lt-gold',
+  'notepad', 'mail', 'receipt', 'bbs', 'terminal', 'msgbox', 'desktop',
+];
 
 // Loads print.html with the document; returns the paper's size in CSS px.
 async function layDocument(page, { tpl, title, html }) {
@@ -294,7 +298,7 @@ async function layDocument(page, { tpl, title, html }) {
   })()`);
 }
 
-const templateOf = (t) => (TEMPLATES.includes(t) ? t : 'notepad');
+const templateOf = (t) => (TEMPLATES.includes(t) ? t : 'lt-lined');
 // Export pages render in their own in-memory session, so nothing they do
 // (zoom is remembered per origin) reaches the main window's file:// origin.
 const EXPORT_PREFS = { sandbox: true, contextIsolation: true, partition: 'lamplight-export' };
@@ -326,14 +330,7 @@ ipcMain.handle('export:pdf', async (_e, { name, title, html, template }) => {
 /* PNG of the paper alone, at 2× (the square desktop comes out at 1080 × 1080).
  * Rendered offscreen, so the window can be larger than the screen. The scale
  * is CSS zoom on this page only (webContents zoom is remembered per origin). */
-ipcMain.handle('export:png', async (_e, { name, html, template }) => {
-  const tpl = templateOf(template);
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: '이미지로 내보내기',
-    defaultPath: path.join(app.getPath('pictures'), `${name || '노트'}.png`),
-    filters: [{ name: 'PNG', extensions: ['png'] }],
-  });
-  if (canceled || !filePath) return null;
+async function renderPng(tpl, html) {
   const scale = tpl === 'desktop' ? 1080 / 480 : 2;
   const page = new BrowserWindow({
     show: false,
@@ -352,13 +349,33 @@ ipcMain.handle('export:png', async (_e, { name, html, template }) => {
     const height = Math.round((box.h - 1) * scale);
     page.setContentSize(Math.max(2400, width), Math.max(2400, height));
     await new Promise((r) => setTimeout(r, 300)); // let the resized frame paint
-    const image = await page.webContents.capturePage({ x: 0, y: 0, width, height });
-    await fs.writeFile(filePath, image.toPNG());
-    shell.showItemInFolder(filePath);
-    return filePath;
+    return (await page.webContents.capturePage({ x: 0, y: 0, width, height })).toPNG();
   } finally {
     page.destroy();
   }
+}
+
+ipcMain.handle('export:png', async (_e, { name, html, template }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: '이미지로 내보내기',
+    defaultPath: path.join(app.getPath('pictures'), `${name || '노트'}.png`),
+    filters: [{ name: 'PNG', extensions: ['png'] }],
+  });
+  if (canceled || !filePath) return null;
+  await fs.writeFile(filePath, await renderPng(templateOf(template), html));
+  shell.showItemInFolder(filePath);
+  return filePath;
+});
+
+/* 공유: the page as an image in a temporary folder, handed to the macOS
+ * share menu (Messages, Mail, AirDrop, …). */
+ipcMain.handle('export:share', async (_e, { name, html, template }) => {
+  const dir = path.join(app.getPath('temp'), 'Lamplight');
+  await fs.mkdir(dir, { recursive: true });
+  const file = path.join(dir, `${String(name || '편지').replace(/[\\/:*?"<>|]/g, ' ').trim() || '편지'}.png`);
+  await fs.writeFile(file, await renderPng(templateOf(template), html));
+  new ShareMenu({ filePaths: [file] }).popup({ browserWindow: win });
+  return true;
 });
 
 ipcMain.handle('theme:set', (_e, source) => {

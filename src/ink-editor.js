@@ -1,7 +1,8 @@
 /* InkEditor
  * A real <textarea> handles input (Korean IME, undo, selection, clipboard) with
  * transparent text. Underneath it, a mirror renders every character as its own
- * span so each strike can land with a little ink jitter, like a typewriter.
+ * span with a little ink jitter, like a typewriter. New letters appear as
+ * they are typed, without animation, so nothing blinks or moves.
  * Edits are diffed and patched into the mirror, so typing stays O(edit).
  *
  * The spans are grouped into one block per text line (each ending with its
@@ -36,9 +37,6 @@
       mirror.replaceChildren(this.lines[0]);
 
       textarea.addEventListener('input', () => this.sync());
-      mirror.addEventListener('animationend', (e) => {
-        if (e.target !== mirror) e.target.classList.remove('strike', 'restrike');
-      });
     }
 
     onChange(fn) { this.listeners.add(fn); }
@@ -124,9 +122,15 @@
       const removed = prev.length - p - s;
       const inserted = next.slice(p, next.length - s);
 
-      let cls = '';
-      if (inserted.length && inserted.length <= 3) cls = removed ? 'restrike' : 'strike';
-      const fresh = this.makeSpans(inserted, cls);
+      const fresh = this.makeSpans(inserted, '');
+      // A replaced letter (Hangul composing ㅎ → 하 → 한, or retyping one)
+      // keeps the ink it already had, so it doesn't flicker as it changes.
+      if (removed === inserted.length) {
+        for (let i = 0; i < fresh.length; i++) {
+          const was = this.spans[p + i];
+          if (was?.style.cssText && fresh[i].style.cssText) fresh[i].style.cssText = was.style.cssText;
+        }
+      }
 
       this.spans = this.spans.slice(0, p).concat(fresh, this.spans.slice(p + removed));
       this.text = next;

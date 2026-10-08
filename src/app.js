@@ -33,7 +33,7 @@
     lampOn: true, theme: 'dark', sound: true, volume: 0.7, sidebar: true, looseCollapsed: false,
     fontSize: 17, railRatio: 60, readingLight: true, soundProfile: 'classic',
     motion: 'system', onboarded: false, aiProvider: 'chatgpt', sortBy: 'updated', paperFont: 'typewriter',
-    exportTemplate: 'notepad',
+    exportTemplate: 'lt-lined',
   };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
   const persist = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {} };
@@ -921,7 +921,8 @@
   }
 
   /* The engraved title is lit by the lamp when it's on in the dark, otherwise
-   * by soft light from the upper left. */
+   * by soft light from the upper left. While you type the lamp rides with the
+   * caret, so the title's light holds still until you pause. */
   let titleLight = { x: 0, y: 0 };
   function shadeTitle(deskRect) {
     let lx = -0.35;
@@ -980,9 +981,9 @@
     }
 
     lamp.setReading(settings.readingLight !== false && !follow);
-    shadeTitle(deskRect);
     // Follow the pointer unless you're typing; reading back follows a bit more.
     const typingNow = performance.now() - lastUserKey < 1500;
+    if (!typingNow) shadeTitle(deskRect);
     const pointerFresh = pointer && performance.now() - pointer.t < 6000;
     if (settings.lightFollowsPointer !== false && pointerFresh && !typingNow) {
       lamp.lookAt(pointer.x, pointer.y, !follow ? 0.5 : 0.4);
@@ -1007,7 +1008,7 @@
   const preview = $('exportPreview');
   let exportAfterKey = false;
   let generating = false;    // the template being rewritten, while streaming
-  let exportTemplate = 'notepad';
+  let exportTemplate = 'lt-lined';
   let exportAi = false;      // off on every open: nothing leaves the Mac unless asked
   let exportDocs = {};       // 'plain' or template → markdown (for this note, while the sheet is open)
   let streamBuf = '';
@@ -1015,14 +1016,36 @@
 
   const providerName = (p) => (p === 'chatgpt' ? 'ChatGPT' : 'Claude');
 
+  // Paper templates share one prompt: a light tidy-up in the paper's mood.
+  const paperAsk = (mood) => `글쓴이의 문장과 말투를 살리면서 맞춤법 · 띄어쓰기와 어색한 문장을 가볍게 다듬어 주세요. 내용을 더하거나 빼지 않고 문단 구성도 유지합니다.${mood ? ` ${mood}` : ''}
+- 맨 위의 제목 줄(#)과 날짜 줄, 구분선(---)은 그대로 둡니다.`;
+  const stationery = (group, name, desc, aiNote, mood) => ({ group, name, desc, ai: '어울리게 다듬기', aiNote, ask: paperAsk(mood) });
+
   const TEMPLATES = {
+    'lt-lined': stationery('클래식', '줄 노트', '파란 줄과 빨간 여백선', '맞춤법과 어색한 문장만', ''),
+    'lt-kraft': stationery('클래식', '크래프트지', '갈색 종이에 우체국 소인', '담백하고 따뜻한 말투로', '말투는 담백하고 따뜻하게 맞춥니다.'),
+    'lt-genko': stationery('클래식', '원고지', '한 칸에 한 글자씩', '원고지에 맞게 단정하게', '원고지에 옮겨 쓰듯 단정한 문장으로 맞춥니다.'),
+    'lt-airmail': stationery('클래식', '항공우편', '멀리 보내는 편지', '멀리 띄우는 소식처럼', '멀리 띄우는 소식처럼 차분한 말투로 맞춥니다.'),
+    'lt-birthday': stationery('계절·기념일', '생일', '가랜드와 꽃가루', '설레는 말투로', '기념일의 설렘이 느껴지게 말투만 밝게 맞춥니다.'),
+    'lt-xmas': stationery('계절·기념일', '크리스마스', '호랑가시나무와 붉은 테두리', '연말 분위기로', '연말의 따뜻한 분위기가 느껴지게 말투만 맞춥니다.'),
+    'lt-spring': stationery('계절·기념일', '벚꽃', '꽃가지와 흩날리는 꽃잎', '봄처럼 산뜻하게', '봄처럼 산뜻한 말투로 맞춥니다.'),
+    'lt-autumn': stationery('계절·기념일', '가을 낙엽', '단풍과 은행잎', '가을처럼 차분하게', '가을처럼 차분한 말투로 맞춥니다.'),
+    'lt-thanks': stationery('계절·기념일', '감사', '카네이션 한 송이', '고마운 마음이 느껴지게', '고마운 마음이 잘 느껴지게 말투만 맞춥니다.'),
+    'lt-tape': stationery('아기자기', '마스킹테이프', '모눈종이와 스티커', '밝고 귀엽게', '밝고 귀여운 말투로 맞춥니다.'),
+    'lt-crayon': stationery('아기자기', '색연필', '해님 · 구름 · 하트 낙서', '아이처럼 솔직하게', '짧고 솔직한 문장으로 맞춥니다.'),
+    'lt-wax': stationery('미니멀', '실링왁스', '코튼지에 붉은 왁스 봉인', '단정하고 깊이 있게', '단정하고 깊이 있는 문장으로 맞춥니다.'),
+    'lt-gold': stationery('미니멀', '금박 테두리', '아이보리 카드와 모노그램', '정중하고 품위 있게', '정중하고 품위 있는 문장으로 맞춥니다.'),
     notepad: {
+      group: '레트로',
+      desc: '윈도우 95 메모장 창에',
       name: '메모장',
       ai: '원고 다듬기',
       aiNote: '맞춤법과 어색한 문장만, 목소리는 그대로',
       ask: '글쓴이의 문장과 말투를 그대로 살리면서 맞춤법 · 띄어쓰기와 어색한 문장만 가볍게 고쳐 주세요. 내용을 더하거나 빼지 말고 문단 구성도 유지합니다. 맨 위의 제목 줄(#)과 날짜 줄, 구분선은 그대로 둡니다.',
     },
     mail: {
+      group: '레트로',
+      desc: '미래의 나에게 보내는 메일',
       name: '이메일',
       ai: '편지로 고쳐 쓰기',
       aiNote: '미래의 나에게 보내는 메일로',
@@ -1033,6 +1056,8 @@
 - 마지막 줄은 "— 오늘의 내가".`,
     },
     receipt: {
+      group: '레트로',
+      desc: '도트 프린터로 뽑은 하루',
       name: '오늘의 영수증',
       ai: '영수증으로 정리',
       aiNote: '하루를 품목과 값으로',
@@ -1044,6 +1069,8 @@
 - 마지막 줄은 "> " 뒤에 오늘의 나에게 건네는 짧은 한마디.`,
     },
     bbs: {
+      group: '레트로',
+      desc: '파란 화면 게시판에 올린 글',
       name: 'PC통신 게시판',
       ai: '게시글로 올리기',
       aiNote: '90년대 게시판에 올린 글처럼',
@@ -1054,6 +1081,8 @@
 - 마지막 줄은 "- 오늘도 램프 아래에서".`,
     },
     terminal: {
+      group: '레트로',
+      desc: '초록 화면에 깜빡이는 시',
       name: 'CRT 터미널',
       ai: '시처럼 행갈이',
       aiNote: '글쓴이의 말로 연과 행을 나눠',
@@ -1063,6 +1092,8 @@
 - 연 3~5개, 각 연은 2~4행. 행은 줄바꿈으로, 연은 빈 줄로 나눕니다. 목록 기호는 쓰지 않습니다.`,
     },
     msgbox: {
+      group: '레트로',
+      desc: '확인 버튼이 있는 알림창',
       name: '메시지 상자',
       ai: '한마디로 줄이기',
       aiNote: '알림창에 뜰 오늘의 한두 문장',
@@ -1071,6 +1102,8 @@
 - 본문은 한두 문장. 오늘 가장 기억에 남는 장면과 마음을 글쓴이의 문장을 살려 씁니다.`,
     },
     desktop: {
+      group: '레트로',
+      desc: '한 줄을 SNS용 이미지로',
       name: '바탕화면',
       ai: '한 줄 고르기',
       aiNote: '가장 오래 남을 문장 하나',
@@ -1091,7 +1124,11 @@
   const docKey = () => (exportAi ? exportTemplate : 'plain');
   const docMeta = () => {
     const d = new Date(current?.createdAt || Date.now());
-    return { seed: current?.id, title: current?.title || '제목 없는 노트', date: `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}` };
+    return {
+      seed: current?.id,
+      title: current?.title || '제목 없는 노트',
+      date: `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`,
+    };
   };
   const currentDoc = () => exportDocs[docKey()];
 
@@ -1200,6 +1237,7 @@
     requestAnimationFrame(() => exportSheet.classList.add('open'));
     setStatus('');
     refreshExport();
+    requestAnimationFrame(fitThumbs);
     const st = settings.aiProvider === 'claude' ? await window.memo.aiKeyStatus() : await window.memo.gptStatus();
     $('exportWho').textContent = settings.aiProvider === 'claude'
       ? (st.hasKey ? 'Claude API' : '연결 필요')
@@ -1216,13 +1254,59 @@
   const docName = () => (current.title || '노트').replace(/[\\/:*?"<>|]/g, ' ').trim()
     + ` - ${TEMPLATES[exportTemplate].name}`;
 
-  exportSheet.querySelectorAll('.export-opt').forEach((b) => b.addEventListener('click', () => {
-    exportTemplate = b.dataset.template;
-    settings.exportTemplate = exportTemplate;
+  /* The template list: tiles grouped by mood, each a live miniature of the
+   * real paper (rendered once, scaled to fit when the sheet first opens). */
+  const GROUPS = ['클래식', '계절·기념일', '아기자기', '미니멀', '레트로'];
+  const SAMPLE = '# 오늘의 메모\n\n2026. 10. 08.\n\n---\n\n아침에 커피 두 잔.\n오후엔 산책을 했다.\n\n- 장보기 ··· 우유\n\n> 오늘도 수고했어';
+  const SAMPLE_META = { seed: 'sample', title: '오늘의 메모', date: '2026.10.08' };
+  let thumbsFitted = false;
+
+  function pickTemplate(key) {
+    exportTemplate = key;
+    settings.exportTemplate = key;
     persist();
     if (!generating) setStatus('');
     refreshExport();
-  }));
+  }
+
+  function buildTemplateList() {
+    const list = $('tplList');
+    for (const group of GROUPS) {
+      const label = document.createElement('div');
+      label.className = 'export-label tpl-group';
+      label.textContent = group;
+      const grid = document.createElement('div');
+      grid.className = 'tpl-grid';
+      for (const [key, t] of Object.entries(TEMPLATES)) {
+        if (t.group !== group) continue;
+        const b = document.createElement('button');
+        b.className = 'export-opt tpl';
+        b.dataset.template = key;
+        b.title = t.desc;
+        b.innerHTML = '<span class="tpl-thumb" aria-hidden="true"><span class="doc"></span></span><b></b>';
+        b.querySelector('b').textContent = t.name;
+        const mini = b.querySelector('.doc');
+        mini.dataset.template = key;
+        mini.innerHTML = templateHtml(key, SAMPLE, SAMPLE_META);
+        b.addEventListener('click', () => pickTemplate(key));
+        grid.append(b);
+      }
+      list.append(label, grid);
+    }
+  }
+  buildTemplateList();
+
+  async function fitThumbs() {
+    if (thumbsFitted) return;
+    await document.fonts.ready;
+    for (const box of exportSheet.querySelectorAll('.tpl-thumb')) {
+      const mini = box.firstElementChild;
+      const s = Math.min(box.clientWidth / mini.offsetWidth, box.clientHeight / mini.offsetHeight);
+      mini.style.transform = `translate(${(box.clientWidth - mini.offsetWidth * s) / 2}px, 0) scale(${s})`;
+    }
+    thumbsFitted = true;
+  }
+
   $('exportAi').addEventListener('change', (e) => {
     exportAi = e.target.checked;
     if (!generating) setStatus('');
@@ -1271,6 +1355,17 @@
     });
     setStatus(p ? '이미지로 저장했어요' : '');
     if (p) toast('이미지로 저장했어요');
+  });
+  $('exportShare').addEventListener('click', async () => {
+    if (!currentDoc() || generating) return;
+    setStatus('공유할 이미지를 만드는 중…', true);
+    $('exportStop').hidden = true;
+    const ok = await window.memo.exportShare({
+      name: docName(),
+      template: exportTemplate,
+      html: templateHtml(exportTemplate, currentDoc(), docMeta()),
+    });
+    setStatus(ok ? '' : '공유하지 못했어요');
   });
   $('exportClose').addEventListener('click', closeExport);
   exportSheet.addEventListener('mousedown', (e) => { if (e.target === exportSheet) closeExport(); });

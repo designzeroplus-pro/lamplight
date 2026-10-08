@@ -496,26 +496,6 @@ body.muted #soundToggle .on, body:not(.muted) #soundToggle .off { display: none;
 .title-wrap textarea::placeholder { color: var(--ink-faint); text-shadow: none; }
 .title-wrap textarea::selection { background: rgba(196, 98, 45, 0.22); color: transparent; }
 
-/* A typed letter lands as fresh dark ink standing on the sheet, then sinks
- * into it: the drop shadow becomes the engraving. No movement, only light. */
-.title-mirror span.strike { animation: press 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.title-mirror span.restrike { animation: press 0.3s ease-out; }
-@keyframes press {
-  0% {
-    color: var(--ink);
-    text-shadow: 0 3px 4px rgba(0, 0, 0, 0.32), 0 0 0 rgba(0, 0, 0, 0);
-    filter: blur(0.6px);
-  }
-  35% {
-    color: var(--ink);
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 0 0 rgba(0, 0, 0, 0);
-    filter: blur(0);
-  }
-  100% { color: var(--deboss-ink); text-shadow: var(--deboss); }
-}
-body.reduce-motion .title-mirror span.strike,
-body.reduce-motion .title-mirror span.restrike { animation: none; }
-
 .meta {
   display: flex;
   align-items: baseline;
@@ -557,11 +537,18 @@ body.reduce-motion .title-mirror span.restrike { animation: none; }
   font-feature-settings: 'kern' 0, 'liga' 0, 'calt' 0;
 }
 
+/* Body letters are engraved like the title, scaled to the smaller type. The
+ * light stays fixed at the upper left (the title's follows the lamp, but the
+ * lamp rides with the caret, so the body would shimmer on every keystroke). */
 .mirror {
+  --deboss-ink: color-mix(in srgb, var(--ink) 74%, var(--paper));
+  --deboss:
+    0.28px 0.75px 0 rgba(255, 253, 246, 0.85),
+    -0.17px -0.45px 0 rgba(30, 22, 14, 0.3);
   min-height: 2em;
-  color: var(--ink);
+  color: var(--deboss-ink);
   pointer-events: none;
-  text-shadow: 0 0 0.6px rgba(27, 25, 22, 0.5);
+  text-shadow: var(--deboss);
 }
 
 .editor textarea {
@@ -597,21 +584,10 @@ body.reduce-motion .title-mirror span.restrike { animation: none; }
 .mirror span.box { color: var(--accent-ink); font-weight: 700; }
 .mirror span.done { opacity: 0.4; text-decoration: line-through; text-decoration-thickness: 1px; }
 .mirror span.now { background: rgba(255, 196, 110, 0.28); box-shadow: 0 2px 0 rgba(255, 170, 80, 0.45); }
-.mirror span.strike { animation: strike 0.22s ease-out; }
-.mirror span.restrike { animation: restrike 0.18s ease-out; }
 .mirror .sentinel { opacity: 0; }
 .mirror span.hit { background: rgba(255, 196, 90, 0.38); border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 196, 90, 0.38); }
 .mirror span.hit-now { background: rgba(255, 150, 40, 0.75); box-shadow: 0 0 0 1px rgba(255, 150, 40, 0.75); }
 
-@keyframes strike {
-  0% { opacity: 0; filter: blur(1.2px); }
-  40% { opacity: 1; filter: blur(0); text-shadow: 0 0 5px rgba(255, 170, 90, 0.75); }
-  100% { opacity: var(--ink, 1); }
-}
-@keyframes restrike {
-  0% { opacity: 0.4; filter: blur(0.8px); }
-  100% { opacity: var(--ink, 1); filter: blur(0); }
-}
 
 /* ───────── light layers ───────── */
 
@@ -1017,74 +993,14 @@ body.light .sheet-backdrop { background: rgba(60, 45, 25, 0.14); }
 .export-opt small { display: block; font-size: 11px; color: var(--dim); }
 .export-opt b, .export-opt small { grid-column: 2; }
 
-/* Tiny swatches for the template list. */
-.tpl-thumb {
-  grid-row: 1 / span 2;
-  justify-self: center;
-  width: 30px;
-  height: 24px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
-}
-.export-opt[data-template='notepad'] .tpl-thumb {
-  background:
-    linear-gradient(90deg, #000080, #1084d0) 0 0 / 100% 5px no-repeat,
-    repeating-linear-gradient(transparent 0 3px, rgba(0, 0, 0, 0.35) 3px 4px) 4px 9px / 18px 11px no-repeat,
-    linear-gradient(#fff, #fff) 2px 7px / 26px 15px no-repeat,
-    #c0c0c0;
-}
-.export-opt[data-template='mail'] .tpl-thumb {
-  background:
-    linear-gradient(90deg, #000080, #1084d0) 0 0 / 100% 5px no-repeat,
-    linear-gradient(#fff, #fff) 9px 7px / 19px 2px no-repeat,
-    linear-gradient(#fff, #fff) 9px 10px / 19px 2px no-repeat,
-    repeating-linear-gradient(transparent 0 2px, rgba(0, 0, 0, 0.3) 2px 3px) 4px 16px / 20px 6px no-repeat,
-    linear-gradient(#fff, #fff) 2px 14px / 26px 9px no-repeat,
-    #c0c0c0;
-}
-.export-opt[data-template='receipt'] .tpl-thumb {
-  width: 22px;
-  height: 30px;
-  background:
-    radial-gradient(circle 1.3px at 2.5px 3px, #333 95%, transparent) 0 0 / 5px 6px repeat-y,
-    radial-gradient(circle 1.3px at 2.5px 3px, #333 95%, transparent) 100% 0 / 5px 6px repeat-y,
-    repeating-linear-gradient(#fcfdf8 0 4px, #d8ead0 4px 8px);
-}
-.export-opt[data-template='bbs'] .tpl-thumb {
-  background:
-    linear-gradient(#00a8a8, #00a8a8) 0 0 / 100% 3px no-repeat,
-    linear-gradient(#ffff55, #ffff55) 3px 6px / 12px 2px no-repeat,
-    repeating-linear-gradient(transparent 0 3px, rgba(200, 200, 200, 0.7) 3px 4px) 3px 10px / 22px 10px no-repeat,
-    #0000a8;
-}
-.export-opt[data-template='terminal'] .tpl-thumb {
-  border-radius: 4px;
-  background:
-    linear-gradient(#4dff7a, #4dff7a) 6px 7px / 10px 2px no-repeat,
-    linear-gradient(#4dff7a, #4dff7a) 6px 11px / 14px 2px no-repeat,
-    linear-gradient(#4dff7a, #4dff7a) 6px 15px / 3px 3px no-repeat,
-    radial-gradient(ellipse at center, #0d1d10, #040704 80%) 3px 3px / 24px 18px no-repeat,
-    #d9d2bc;
-}
-.export-opt[data-template='msgbox'] .tpl-thumb {
-  background:
-    linear-gradient(90deg, #000080, #1084d0) 0 0 / 100% 5px no-repeat,
-    radial-gradient(circle 3px at 7px 12px, #1a3ad6 90%, transparent),
-    linear-gradient(#000, #000) 13px 10px / 13px 1.5px no-repeat,
-    linear-gradient(#000, #000) 13px 13px / 9px 1.5px no-repeat,
-    linear-gradient(#dfdfdf, #dfdfdf) 10px 18px / 10px 4px no-repeat,
-    #c0c0c0;
-}
-.export-opt[data-template='desktop'] .tpl-thumb {
-  width: 28px;
-  height: 28px;
-  background:
-    linear-gradient(#c0c0c0, #c0c0c0) 0 100% / 100% 4px no-repeat,
-    linear-gradient(90deg, #000080, #1084d0) 9px 7px / 16px 3px no-repeat,
-    linear-gradient(#fff, #fff) 9px 10px / 16px 9px no-repeat,
-    linear-gradient(#fff, #fff) 3px 4px / 4px 4px no-repeat,
-    linear-gradient(#fff, #fff) 3px 11px / 4px 4px no-repeat,
-    #008080;
-}
+/* Template tiles: live miniatures of each paper, grouped by mood. */
+.tpl-group { margin-top: 12px; }
+.tpl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.export-opt.tpl { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 2px 6px; margin: 0; }
+.export-opt.tpl b { grid-column: auto; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; text-align: center; }
+.export-opt.tpl.on { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.tpl-thumb { position: relative; display: block; width: 52px; height: 66px; overflow: hidden; pointer-events: none; }
+.tpl-thumb > .doc[data-template] { position: absolute; display: block; top: 0; left: 0; margin: 0; max-width: none; transform-origin: 0 0; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5); }
 
 .export-ai {
   display: flex;
@@ -1268,8 +1184,6 @@ body.light .sheet-backdrop { background: rgba(60, 45, 25, 0.14); }
 .editor textarea:focus-visible, .typed:focus-visible { outline: none; }
 .note:focus-visible, .group-head:focus-visible { outline-offset: -2px; }
 
-body.reduce-motion .mirror span.strike,
-body.reduce-motion .mirror span.restrike { animation: none; }
 body.reduce-motion *,
 body.reduce-motion *::before,
 body.reduce-motion *::after {

@@ -9,6 +9,13 @@
   <link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/700.css" />
   <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/400.css" />
   <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/nanum-pen-script/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gaegu/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gaegu/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gowun-batang/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gowun-batang/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/caveat/600.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/cormorant-garamond/700-italic.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="doc.css" />
@@ -276,7 +283,7 @@
       <div class="ob-step" data-step="0">
         <div class="ob-lamp" aria-hidden="true"><i></i></div>
         <h2 id="obTitle">작은 램프 아래의 노트</h2>
-        <p>타자기처럼 한 글자씩 적어 보세요. 다 쓰면 메모장 · 이메일 · 도트 프린터 영수증 같은 레트로 템플릿으로 내보낼 수 있어요.</p>
+        <p>타자기처럼 한 글자씩 적어 보세요. 다 쓰면 줄 노트 · 원고지 · 실링왁스 · 윈도우 95 메모장 같은 다양한 템플릿으로 내보내고 공유할 수 있어요.</p>
         <ul class="ob-list">
           <li><b>⌘E</b> 템플릿으로 내보내기 (PDF · Markdown)</li>
           <li><b>⌘K</b> 모든 노트 검색</li>
@@ -301,14 +308,7 @@
     <div class="sheet export-sheet" role="dialog" aria-labelledby="exportTitle">
       <aside class="export-side">
         <h2 id="exportTitle">내보내기</h2>
-        <div class="export-label">템플릿</div>
-        <button class="export-opt" data-template="notepad"><i class="tpl-thumb" aria-hidden="true"></i><b>메모장</b><small>윈도우 95 메모장 창에</small></button>
-        <button class="export-opt" data-template="mail"><i class="tpl-thumb" aria-hidden="true"></i><b>이메일</b><small>미래의 나에게 보내는 메일</small></button>
-        <button class="export-opt" data-template="receipt"><i class="tpl-thumb" aria-hidden="true"></i><b>오늘의 영수증</b><small>도트 프린터로 뽑은 하루</small></button>
-        <button class="export-opt" data-template="bbs"><i class="tpl-thumb" aria-hidden="true"></i><b>PC통신 게시판</b><small>파란 화면 게시판에 올린 글</small></button>
-        <button class="export-opt" data-template="terminal"><i class="tpl-thumb" aria-hidden="true"></i><b>CRT 터미널</b><small>초록 화면에 깜빡이는 시</small></button>
-        <button class="export-opt" data-template="msgbox"><i class="tpl-thumb" aria-hidden="true"></i><b>메시지 상자</b><small>확인 버튼이 있는 알림창</small></button>
-        <button class="export-opt" data-template="desktop"><i class="tpl-thumb" aria-hidden="true"></i><b>바탕화면</b><small>한 줄을 SNS용 이미지로</small></button>
+        <div id="tplList"></div>
         <div class="export-label">AI로 어울리게 다듬기 <span id="exportWho"></span></div>
         <label class="export-ai">
           <span><b id="exportAiTitle">다듬기</b><small id="exportAiNote"></small></span>
@@ -329,7 +329,8 @@
           <button class="btn" id="exportCopy">복사</button>
           <button class="btn" id="exportMd">Markdown</button>
           <button class="btn" id="exportPng">이미지로 저장</button>
-          <button class="btn primary" id="exportPdf">PDF로 저장</button>
+          <button class="btn" id="exportPdf">PDF로 저장</button>
+          <button class="btn primary" id="exportShare">공유…</button>
           <button class="btn" id="exportClose">닫기</button>
         </div>
       </section>
