@@ -271,30 +271,89 @@ ipcMain.handle('export:note', async (_e, { name, content }) => {
   return filePath;
 });
 
-/* PDF: the export preview's HTML is laid into print.html (same fonts and
- * document styles), rendered off-screen and printed to A4. */
-ipcMain.handle('export:pdf', async (_e, { name, title, html }) => {
+/* PDF / PNG: the export preview's HTML is laid into print.html (same fonts
+ * and document styles), rendered off-screen and cut to the paper itself —
+ * each template is a window, a strip or a screen of its own size. */
+const TEMPLATES = ['notepad', 'mail', 'receipt', 'bbs', 'terminal', 'msgbox', 'desktop'];
+
+// Loads print.html with the document; returns the paper's size in CSS px.
+async function layDocument(page, { tpl, title, html }) {
+  await page.loadFile(path.join(__dirname, 'src', 'print.html'));
+  return page.webContents.executeJavaScript(`(async () => {
+    document.title = ${JSON.stringify(String(title || ''))};
+    const doc = document.getElementById('doc');
+    doc.dataset.template = ${JSON.stringify(tpl)};
+    doc.innerHTML = ${JSON.stringify(String(html || ''))};
+    await document.fonts.ready;
+    const r = doc.getBoundingClientRect();
+    const size = { w: Math.ceil(r.width), h: Math.ceil(r.height) + 1 };
+    const style = document.createElement('style');
+    style.textContent = '@page { size: ' + size.w + 'px ' + size.h + 'px; margin: 0; }';
+    document.head.append(style);
+    return size;
+  })()`);
+}
+
+const templateOf = (t) => (TEMPLATES.includes(t) ? t : 'notepad');
+// Export pages render in their own in-memory session, so nothing they do
+// (zoom is remembered per origin) reaches the main window's file:// origin.
+const EXPORT_PREFS = { sandbox: true, contextIsolation: true, partition: 'lamplight-export' };
+
+ipcMain.handle('export:pdf', async (_e, { name, title, html, template }) => {
+  const tpl = templateOf(template);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'PDF로 내보내기',
     defaultPath: path.join(app.getPath('documents'), `${name || '노트'}.pdf`),
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
   if (canceled || !filePath) return null;
-  const page = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true } });
+  const page = new BrowserWindow({ show: false, webPreferences: EXPORT_PREFS });
   try {
-    await page.loadFile(path.join(__dirname, 'src', 'print.html'));
-    await page.webContents.executeJavaScript(`(async () => {
-      document.title = ${JSON.stringify(String(title || ''))};
-      document.getElementById('doc').innerHTML = ${JSON.stringify(String(html || ''))};
-      await document.fonts.ready;
-      return true;
-    })()`);
+    await layDocument(page, { tpl, title, html });
     const pdf = await page.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
       preferCSSPageSize: true,
     });
     await fs.writeFile(filePath, pdf);
+    shell.showItemInFolder(filePath);
+    return filePath;
+  } finally {
+    page.destroy();
+  }
+});
+
+/* PNG of the paper alone, at 2× (the square desktop comes out at 1080 × 1080).
+ * Rendered offscreen, so the window can be larger than the screen. The scale
+ * is CSS zoom on this page only (webContents zoom is remembered per origin). */
+ipcMain.handle('export:png', async (_e, { name, html, template }) => {
+  const tpl = templateOf(template);
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: '이미지로 내보내기',
+    defaultPath: path.join(app.getPath('pictures'), `${name || '노트'}.png`),
+    filters: [{ name: 'PNG', extensions: ['png'] }],
+  });
+  if (canceled || !filePath) return null;
+  const scale = tpl === 'desktop' ? 1080 / 480 : 2;
+  const page = new BrowserWindow({
+    show: false,
+    width: 2400,
+    height: 2400,
+    useContentSize: true,
+    webPreferences: { ...EXPORT_PREFS, offscreen: true },
+  });
+  try {
+    const box = await layDocument(page, { tpl, html });
+    // The paper moves to the top-left corner, then everything is scaled up.
+    await page.webContents.executeJavaScript(`
+      document.getElementById('doc').style.margin = '0';
+      document.documentElement.style.zoom = '${scale}';`);
+    const width = Math.round(box.w * scale);
+    const height = Math.round((box.h - 1) * scale);
+    page.setContentSize(Math.max(2400, width), Math.max(2400, height));
+    await new Promise((r) => setTimeout(r, 300)); // let the resized frame paint
+    const image = await page.webContents.capturePage({ x: 0, y: 0, width, height });
+    await fs.writeFile(filePath, image.toPNG());
     shell.showItemInFolder(filePath);
     return filePath;
   } finally {
@@ -641,7 +700,7 @@ app.whenReady().then(() => {
   app.setAboutPanelOptions({
     applicationName: 'Lamplight',
     applicationVersion: app.getVersion(),
-    copyright: '작은 램프 아래의 회의록',
+    copyright: '작은 램프 아래의 글쓰기',
   });
   if (app.isPackaged) {
     setTimeout(checkForUpdates, 8000);

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  previewOf, sortNotes, mdToHtml, renumberList, isNewer,
+  previewOf, sortNotes, mdToHtml, templateHtml, renumberList, isNewer,
 } = require('../src/shared');
 
 test('previewOf strips ink markers and markdown punctuation', () => {
@@ -67,4 +67,46 @@ test('isNewer compares semantic versions', () => {
   assert.equal(isNewer('0.2.0', '0.2.0'), false);
   assert.equal(isNewer('0.1.9', '0.2.0'), false);
   assert.equal(isNewer('1', '0.9'), true);
+});
+
+test('templateHtml frames a Notepad window around the whole note', () => {
+  const html = templateHtml('notepad', '# 제목\n\n본문', { title: '<비> & 우산', date: '2026.10.08' });
+  assert.match(html, /^<div class="w95-title"><i class="w95-ico"><\/i><b>&lt;비&gt; &amp; 우산 - 메모장<\/b>/);
+  assert.match(html, /<div class="w95-field np-text"><h1>제목<\/h1>/);
+  assert.match(html, /<div class="w95-status"><span>2026\.10\.08<\/span>/);
+});
+
+test('templateHtml lifts the head into mail fields and signs the letter', () => {
+  const html = templateHtml('mail', '# 잘 지내니\n\n2026. 10. 08. (목)\n\n---\n\n오늘은 비.\n\n— 오늘의 내가');
+  assert.match(html, /<span>제목:<\/span><b class="w95-field">잘 지내니<\/b>/);
+  assert.match(html, /<span>날짜:<\/span><b class="w95-field">2026\. 10\. 08\. \(목\)<\/b>/);
+  assert.match(html, /<div class="w95-field ml-body"><p>오늘은 비\.<\/p>\n<p class="sign">— 오늘의 내가<\/p><\/div>/);
+  assert.doesNotMatch(html, /<h1>|<hr>/);
+});
+
+test('templateHtml keeps a first paragraph that is not a date', () => {
+  assert.match(templateHtml('bbs', '# 제목\n\n그냥 첫 문단'), /<div class="bb-body"><p>그냥 첫 문단<\/p>/);
+});
+
+test('templateHtml frames a receipt with leaders, a stable serial and barcode', () => {
+  const md = '# 하루\n\n- 커피 ··· ×2\n- **합계** ... 괜찮은 날\n- 그냥 항목';
+  const html = templateHtml('receipt', md, { seed: 'note-1' });
+  assert.match(html, /^<header class="rc-head">/);
+  assert.match(html, /<li class="item"><span>커피<\/span><i><\/i><span>×2<\/span><\/li>/);
+  assert.match(html, /<li class="item"><span><strong>합계<\/strong><\/span><i><\/i><span>괜찮은 날<\/span><\/li>/);
+  assert.match(html, /<li>그냥 항목<\/li>/);
+  assert.match(html, /No\. \d{4}<\/small>/);
+  assert.equal(html, templateHtml('receipt', md, { seed: 'note-1' }));
+  assert.notEqual(html.match(/No\. \d{4}/)[0], templateHtml('receipt', '', { seed: 'note-2' }).match(/No\. \d{4}/)[0]);
+});
+
+test('templateHtml prints the poem on a terminal after its command', () => {
+  const html = templateHtml('terminal', '# 비\n\n2026. 10. 08.\n\n---\n\n한 줄');
+  assert.match(html, /TYPE POEM\.TXT<\/p>\n<h1>비<\/h1><p class="tm-date">2026\. 10\. 08\.<\/p>\n<p>한 줄<\/p>/);
+});
+
+test('templateHtml picks one desktop line: quote first, then the body', () => {
+  assert.match(templateHtml('desktop', '# 비\n\n날짜 1\n\n---\n\n첫 문단\n\n> 남는 한 줄'), /len-l"><p>남는 한 줄<\/p>[\s\S]*<i class="dt-task">비<\/i>/);
+  assert.match(templateHtml('desktop', '# 비\n\n날짜 1\n\n---\n\n첫 문단\n\n둘째'), /len-l"><p>첫 문단<\/p>/);
+  assert.match(templateHtml('desktop', '그냥 한 줄', { title: '제목' }), /<p>그냥 한 줄<\/p>[\s\S]*<i class="dt-task">제목<\/i>/);
 });

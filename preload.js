@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('memo', {
 
   exportNote: (payload) => ipcRenderer.invoke('export:note', payload),
   exportPdf: (payload) => ipcRenderer.invoke('export:pdf', payload),
+  exportPng: (payload) => ipcRenderer.invoke('export:png', payload),
   setTheme: (source) => ipcRenderer.invoke('theme:set', source),
 
   checkUpdate: () => ipcRenderer.invoke('update:check'),

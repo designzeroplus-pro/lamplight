@@ -8,7 +8,6 @@
   const scroller = $('scroller');
   const paper = $('paper');
   const titleEl = $('title');
-  const attendeesEl = $('attendees');
   const dateEl = $('date');
   const input = $('input');
   const lampEl = $('lamp');
@@ -19,7 +18,7 @@
   const LAMP_OFFSET = 52;   // lamp rides just to the right of the caret
   const BELL_AT = 0.86;     // ring the margin bell near the end of a line
 
-  const { previewOf, sortNotes, mdToHtml, renumberList } = window.LampShared;
+  const { previewOf, sortNotes, templateHtml, renumberList } = window.LampShared;
   const sound = new TypeSound();
   const editor = new InkEditor(input, $('mirror'));
   const titleInk = new InkEditor(titleEl, $('titleMirror'));
@@ -34,6 +33,7 @@
     lampOn: true, theme: 'dark', sound: true, volume: 0.7, sidebar: true, looseCollapsed: false,
     fontSize: 17, railRatio: 60, readingLight: true, soundProfile: 'classic',
     motion: 'system', onboarded: false, aiProvider: 'chatgpt', sortBy: 'updated', paperFont: 'typewriter',
+    exportTemplate: 'notepad',
   };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
   const persist = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {} };
@@ -604,7 +604,6 @@
     current = note;
 
     titleInk.setText(note.title || '');
-    attendeesEl.value = note.attendees || '';
     dateEl.textContent = fmtLongDate(note.createdAt);
     editor.setText(note.body || '');
     renderList();
@@ -656,8 +655,7 @@
 
   // The note as Markdown: title, date · people, then the body as written.
   function noteMarkdown() {
-    const meta = [fmtLongDate(current.createdAt), current.attendees].filter(Boolean).join(' · ');
-    return `# ${current.title || '제목 없는 노트'}\n\n${meta}\n\n---\n\n${plainText()}\n`;
+    return `# ${current.title || '제목 없는 노트'}\n\n${fmtLongDate(current.createdAt)}\n\n---\n\n${plainText()}\n`;
   }
 
   // The title is one line: Enter moves on (handled on keydown), pasted line breaks become spaces.
@@ -681,10 +679,6 @@
     if (!row || settings.sortBy === 'title') { renderList(); return; }
     row.textContent = s.title || '제목 없는 노트';
     row.classList.toggle('untitled', !s.title);
-  });
-  attendeesEl.addEventListener('input', () => {
-    current.attendees = attendeesEl.value;
-    scheduleSave();
   });
 
   /* ───────── typing feel ───────── */
@@ -888,8 +882,8 @@
 
     if (kind === 'enter' && t !== input && !e.isComposing) {
       e.preventDefault();
-      if (t === titleEl) attendeesEl.focus();
-      else { input.focus(); input.setSelectionRange(0, 0); }
+      input.focus();
+      input.setSelectionRange(0, 0);
     }
 
     sound.play(kind);
@@ -906,7 +900,7 @@
     }
   });
 
-  for (const el of [input, titleEl, attendeesEl]) {
+  for (const el of [input, titleEl]) {
     el.addEventListener('focus', () => { follow = true; });
     el.addEventListener('mouseup', () => { follow = true; });
   }
@@ -922,22 +916,9 @@
 
   /* ───────── caret geometry ───────── */
 
-  const measure = document.createElement('canvas').getContext('2d');
-
-  function inputCaret(el) {
-    const cs = getComputedStyle(el);
-    measure.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-    measure.letterSpacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing;
-    const text = el.value || '';
-    const w = measure.measureText(text.slice(0, el.selectionEnd ?? text.length)).width;
-    const r = el.getBoundingClientRect();
-    return { x: r.left + w - el.scrollLeft, top: r.top, bottom: r.bottom - 8 };
-  }
-
   function caretAnchor() {
     const a = document.activeElement;
     if (a === titleEl) return titleInk.caretRect();
-    if (a === attendeesEl) return inputCaret(a);
     return editor.caretRect();
   }
 
@@ -1015,9 +996,11 @@
   }
 
   /* ───────── export ─────────
-   * Save the note as it is (PDF / Markdown), or have ChatGPT (or Claude)
-   * reshape it first — tidy minutes, a report, an email, a one-pager, a to-do
-   * list, a talk outline, or anything you ask — preview it, then save. */
+   * Lay the note out as an old-PC object — a Notepad window, an e-mail, a
+   * dot-matrix receipt, a PC-통신 post, a CRT terminal, a message box or a
+   * desktop — and save it as PDF, PNG or Markdown. Optionally ChatGPT (or
+   * Claude) first rewrites it to suit: a light edit, a letter to your future
+   * self, a day itemised like a receipt, a poem, one line to keep. */
 
   const keySheet = $('keySheet');
   const keyInput = $('keyInput');
@@ -1025,41 +1008,104 @@
   const exportSheet = $('exportSheet');
   const preview = $('exportPreview');
   let exportAfterKey = false;
-  let generating = false;
-  let exportKind = 'plain';
-  let exportDocs = {};       // kind → markdown (for this note, while the sheet is open)
+  let generating = false;    // the template being rewritten, while streaming
+  let exportTemplate = 'notepad';
+  let exportAi = false;      // off on every open: nothing leaves the Mac unless asked
+  let exportDocs = {};       // 'plain' or template → markdown (for this note, while the sheet is open)
   let streamBuf = '';
   let renderTimer = null;
 
   const providerName = (p) => (p === 'chatgpt' ? 'ChatGPT' : 'Claude');
 
-  const KINDS = {
-    minutes: '정리된 회의록으로 바꿔 주세요. 구성: "## 개요"(2~3문장), "## 논의 내용"(주제별 목록), "## 결정 사항"(번호 목록), "## 할 일"(체크박스 목록, "담당: 내용 (기한)").',
-    report: '보고서로 바꿔 주세요. 구성: 맨 위 한 줄 제목(#), "## 요약", "## 배경", "## 주요 내용", "## 결론 및 다음 단계". 문장은 보고서 문체(~함, ~임)로.',
-    email: '업무 이메일 초안으로 바꿔 주세요. 첫 줄은 "**제목:** …", 그다음 인사, 핵심 내용(필요하면 목록), 요청 사항, 맺음말 순서로. 정중하고 간결하게.',
-    summary: '한 장 요약으로 바꿔 주세요. 맨 위에 한 줄 결론(굵게), 그 아래 핵심 3~5개 목록, 마지막에 "## 다음 단계" 목록.',
-    todo: '할 일 목록으로 바꿔 주세요. 모든 실행 항목을 "- [ ] 담당: 할 일 (기한)" 형식의 체크박스로, 주제별 "##" 소제목으로 묶어 주세요. 담당이나 기한을 모르면 생략.',
-    slides: '발표 개요로 바꿔 주세요. 슬라이드마다 "## 1. 제목" 형식의 소제목과 그 아래 핵심 목록 3개 이내. 6~10장.',
+  const TEMPLATES = {
+    notepad: {
+      name: '메모장',
+      ai: '원고 다듬기',
+      aiNote: '맞춤법과 어색한 문장만, 목소리는 그대로',
+      ask: '글쓴이의 문장과 말투를 그대로 살리면서 맞춤법 · 띄어쓰기와 어색한 문장만 가볍게 고쳐 주세요. 내용을 더하거나 빼지 말고 문단 구성도 유지합니다. 맨 위의 제목 줄(#)과 날짜 줄, 구분선은 그대로 둡니다.',
+    },
+    mail: {
+      name: '이메일',
+      ai: '편지로 고쳐 쓰기',
+      aiNote: '미래의 나에게 보내는 메일로',
+      ask: `이 글을 미래의 나에게 보내는 이메일로 고쳐 써 주세요.
+- 첫 줄은 "# " 뒤에 메일 제목(짧게), 다음 줄은 노트의 날짜를 그대로, 그다음 "---" 한 줄.
+- 본문은 "미래의 나에게,"로 시작해, 글쓴이가 1인칭으로 오늘 있었던 일과 마음을 다정하게 들려주듯 씁니다. 노트에 있는 일과 감정만 씁니다.
+- 글쓴이가 쓴 좋은 문장은 되도록 그대로 살립니다. 문단 3~6개, 목록과 소제목 없이.
+- 마지막 줄은 "— 오늘의 내가".`,
+    },
+    receipt: {
+      name: '오늘의 영수증',
+      ai: '영수증으로 정리',
+      aiNote: '하루를 품목과 값으로',
+      ask: `이 글을 '오늘의 영수증'으로 바꿔 주세요.
+- 첫 줄은 "# " 뒤에 짧은 제목, 다음 줄은 노트의 날짜를 그대로 씁니다.
+- 그다음 "---" 한 줄, 그 아래 오늘의 일 · 장면 · 감정을 품목으로 5~10개: "- 품목 ··· 값" 형식. 값은 수량 · 시간 · 감정을 재치 있게(예: ×2, 30분, 무료, 한 숟갈, ₩0) 씁니다. 노트에 있는 것만 씁니다.
+- 품목 이름은 짧게(12자 이내) 씁니다.
+- 그다음 "---" 한 줄, 그 아래 "- **합계** ··· " 뒤에 하루를 한마디로 씁니다.
+- 마지막 줄은 "> " 뒤에 오늘의 나에게 건네는 짧은 한마디.`,
+    },
+    bbs: {
+      name: 'PC통신 게시판',
+      ai: '게시글로 올리기',
+      aiNote: '90년대 게시판에 올린 글처럼',
+      ask: `이 글을 90년대 PC통신 게시판에 올린 일기 글처럼 고쳐 주세요.
+- 첫 줄은 "# " 뒤에 게시글 제목. 말머리를 붙입니다(예: "[일기] 우산 없이 걸은 날").
+- 다음 줄은 노트의 날짜를 그대로, 그다음 "---" 한 줄.
+- 본문은 글쓴이의 1인칭으로, 편하고 담백한 게시판 말투로 씁니다. 노트에 있는 일과 감정만 쓰고, 짧은 문단 여러 개로 나눕니다.
+- 마지막 줄은 "- 오늘도 램프 아래에서".`,
+    },
+    terminal: {
+      name: 'CRT 터미널',
+      ai: '시처럼 행갈이',
+      aiNote: '글쓴이의 말로 연과 행을 나눠',
+      ask: `이 글을 한 편의 시처럼 옮겨 주세요.
+- 첫 줄은 "# " 뒤에 시의 제목, 다음 줄은 노트의 날짜를 그대로 씁니다. 그다음 "---" 한 줄.
+- 본문은 글쓴이가 쓴 단어와 문장을 최대한 그대로 쓰고, 행갈이와 덜어내기로 시의 호흡을 만듭니다. 새로운 사건이나 비유를 지어내지 않습니다.
+- 연 3~5개, 각 연은 2~4행. 행은 줄바꿈으로, 연은 빈 줄로 나눕니다. 목록 기호는 쓰지 않습니다.`,
+    },
+    msgbox: {
+      name: '메시지 상자',
+      ai: '한마디로 줄이기',
+      aiNote: '알림창에 뜰 오늘의 한두 문장',
+      ask: `이 글을 알림창에 뜨는 오늘의 메시지로 줄여 주세요.
+- 첫 줄은 "# " 뒤에 창 제목(짧게, 예: "오늘의 기록"), 다음 줄은 노트의 날짜를 그대로, 그다음 "---" 한 줄.
+- 본문은 한두 문장. 오늘 가장 기억에 남는 장면과 마음을 글쓴이의 문장을 살려 씁니다.`,
+    },
+    desktop: {
+      name: '바탕화면',
+      ai: '한 줄 고르기',
+      aiNote: '가장 오래 남을 문장 하나',
+      ask: `이 글에서 가장 오래 마음에 남을 문장 하나를 골라 주세요.
+- 첫 줄은 "# " 뒤에 짧은 제목(글의 제목을 그대로 써도 됩니다).
+- 그다음 "> " 뒤에 그 문장 하나. 글쓴이의 문장을 그대로 쓰고, 꼭 필요하면 조사나 어미만 다듬습니다. 40자 안팎.
+- 그 밖에는 아무것도 쓰지 않습니다.`,
+    },
   };
+  if (TEMPLATES[settings.exportTemplate]) exportTemplate = settings.exportTemplate;
 
-  const SYSTEM_EXPORT = `당신은 필기를 깔끔한 문서로 다듬는 편집자입니다. 사용자가 노트(제목, 날짜, 참석자, 본문)를 주고 원하는 결과물 형식을 알려줍니다.
-- 한국어로 씁니다(사용자 요청이 다른 언어면 그 언어로).
-- 결과는 Markdown으로만 씁니다: # / ## / ### 제목, 목록(- , 1. ), 체크박스(- [ ] ), **굵게**, > 인용, --- 구분선. 표와 HTML은 쓰지 않습니다.
-- 노트에 없는 사실은 만들지 않습니다. 모르는 담당자·기한은 비워 둡니다.
+  const SYSTEM_EXPORT = `당신은 일기와 짧은 글을 고른 종이(템플릿)에 어울리게 옮겨 적도록 돕는 편집자입니다. 사용자가 글(제목, 날짜, 본문)과 원하는 형태를 알려줍니다.
+- 글쓴이의 목소리와 문장을 존중합니다. 글에 없는 사실이나 사건은 만들지 않습니다.
+- 한국어로 씁니다(글이나 요청이 다른 언어면 그 언어로).
+- 결과는 Markdown으로만 씁니다: # / ## 제목, 목록(- , 1. ), **굵게**, > 인용, --- 구분선. 표와 HTML은 쓰지 않습니다.
 - 결과물만 쓰고, 앞뒤 설명이나 인사는 붙이지 않습니다.`;
 
+  const docKey = () => (exportAi ? exportTemplate : 'plain');
+  const docMeta = () => {
+    const d = new Date(current?.createdAt || Date.now());
+    return { seed: current?.id, title: current?.title || '제목 없는 노트', date: `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}` };
+  };
+  const currentDoc = () => exportDocs[docKey()];
+
   function showDoc(md) {
-    preview.innerHTML = mdToHtml(md);
+    preview.dataset.template = exportTemplate;
+    preview.innerHTML = templateHtml(exportTemplate, md, docMeta());
   }
 
-  function setKind(kind) {
-    exportKind = kind;
-    exportSheet.querySelectorAll('.export-opt').forEach((b) => b.classList.toggle('on', b.dataset.kind === kind));
-    $('exportCustom').hidden = kind !== 'custom';
-    if (kind === 'plain') { showDoc(exportDocs.plain); setStatus(''); return; }
-    if (exportDocs[kind]) { showDoc(exportDocs[kind]); setStatus(`${providerName(settings.aiProvider)}로 만든 결과예요`); return; }
-    if (kind === 'custom') { preview.innerHTML = '<p class="hint">원하는 결과물을 적고 "만들기"를 누르세요.</p>'; setStatus(''); $('exportPrompt').focus(); return; }
-    generate(kind);
+  function showHint(text) {
+    preview.dataset.template = exportTemplate;
+    preview.innerHTML = '<p class="hint"></p>';
+    preview.firstChild.textContent = text;
   }
 
   function setStatus(text, busy = false) {
@@ -1068,29 +1114,48 @@
     $('exportStop').hidden = !busy;
   }
 
+  // Show the chosen template, with or without the AI rewrite (made on first view).
+  function refreshExport() {
+    const t = TEMPLATES[exportTemplate];
+    exportSheet.querySelectorAll('.export-opt').forEach((b) => b.classList.toggle('on', b.dataset.template === exportTemplate));
+    $('exportAi').checked = exportAi;
+    $('exportAiTitle').textContent = t.ai;
+    $('exportAiNote').textContent = t.aiNote;
+    $('exportCustom').hidden = !exportAi;
+    $('exportPrivacy').hidden = !exportAi;
+    $('exportPrivacy').textContent = `다듬을 때만 이 글이 ${settings.aiProvider === 'claude' ? 'Anthropic' : 'OpenAI'}로 전송돼요.`;
+    $('exportRedo').hidden = !exportAi;
+    if (generating && generating === docKey()) { showDoc(streamBuf); return; }
+    const md = currentDoc();
+    if (md) { showDoc(md); setStatus(exportAi ? `${providerName(settings.aiProvider)}로 다듬은 결과예요` : ''); return; }
+    if (generating) { showHint(`‘${TEMPLATES[generating].name}’ 다듬기가 끝나면 이어서 만들게요`); return; }
+    generate(exportTemplate);
+  }
+
   async function aiReady() {
     return settings.aiProvider === 'claude'
       ? (await window.memo.aiKeyStatus()).hasKey
       : (await window.memo.gptStatus()).signedIn;
   }
 
-  async function generate(kind) {
+  async function generate(template) {
     if (generating) return;
     if (!(await aiReady())) {
-      exportAfterKey = kind;
+      showHint('AI를 연결하면 이 템플릿에 어울리게 다듬어 드려요');
+      setStatus('');
+      exportAfterKey = template;
       openKeySheet(true);
       return;
     }
-    const ask = kind === 'custom' ? $('exportPrompt').value.trim() : KINDS[kind];
-    if (!ask) return;
-    generating = kind;
+    const extra = $('exportPrompt').value.trim();
+    generating = template;
     streamBuf = '';
-    preview.innerHTML = '<p class="hint">정리하는 중…</p>';
-    setStatus(`${providerName(settings.aiProvider)}가 만드는 중…`, true);
+    showHint('다듬는 중…');
+    setStatus(`${providerName(settings.aiProvider)}가 다듬는 중…`, true);
     const ok = await window.memo.aiGenerate({
       provider: settings.aiProvider === 'claude' ? 'claude' : 'chatgpt',
       system: SYSTEM_EXPORT,
-      prompt: `${ask}\n\n--- 노트 ---\n${noteMarkdown()}`,
+      prompt: `${TEMPLATES[template].ask}${extra ? `\n\n덧붙인 바람: ${extra}` : ''}\n\n--- 글 ---\n${noteMarkdown()}`,
     });
     if (!ok && generating) generating = false;
   }
@@ -1100,14 +1165,17 @@
     if (ev.type === 'delta') {
       streamBuf += ev.text;
       clearTimeout(renderTimer);
-      renderTimer = setTimeout(() => showDoc(streamBuf), 60);
+      renderTimer = setTimeout(() => { if (generating === docKey()) showDoc(streamBuf); }, 60);
     } else if (ev.type === 'done') {
       clearTimeout(renderTimer);
       exportDocs[generating] = streamBuf;
-      if (exportKind === generating) showDoc(streamBuf);
       generating = false;
-      setStatus(ev.stopReason === 'max_tokens' ? '결과가 길어 중간에 끊겼어요' : `${providerName(settings.aiProvider)}로 만든 결과예요`);
+      if (exportSheet.hidden) return;
+      setStatus('');
+      refreshExport(); // shows the result, or starts the template picked meanwhile
+      if (ev.stopReason === 'max_tokens') setStatus('결과가 길어 중간에 끊겼어요');
     } else if (ev.type === 'error') {
+      const failed = generating;
       generating = false;
       const msg = {
         auth: 'API 키를 확인해 주세요',
@@ -1120,7 +1188,7 @@
         'gpt-login': 'ChatGPT에 다시 로그인해 주세요',
       }[ev.code] || '만들지 못했어요';
       setStatus(msg);
-      if (exportKind !== 'plain' && !exportDocs[exportKind]) preview.innerHTML = `<p class="hint">${msg}</p>`;
+      if (failed === docKey()) showHint(msg);
       if (ev.code === 'auth' || ev.code === 'gpt-login') openKeySheet(false);
     }
   });
@@ -1129,13 +1197,15 @@
     if (!current) return;
     await saveNow();
     exportDocs = { plain: noteMarkdown() };
+    exportAi = false;
     exportSheet.hidden = false;
     requestAnimationFrame(() => exportSheet.classList.add('open'));
+    setStatus('');
+    refreshExport();
     const st = settings.aiProvider === 'claude' ? await window.memo.aiKeyStatus() : await window.memo.gptStatus();
     $('exportWho').textContent = settings.aiProvider === 'claude'
-      ? (st.hasKey ? 'Claude API로 다듬어요' : 'AI 연결이 필요해요')
-      : (st.signedIn ? `ChatGPT · ${st.email || '연결됨'}` : 'ChatGPT 연결이 필요해요');
-    setKind('plain');
+      ? (st.hasKey ? 'Claude API' : '연결 필요')
+      : (st.signedIn ? `ChatGPT · ${st.email || '연결됨'}` : '연결 필요');
   }
 
   function closeExport() {
@@ -1146,19 +1216,28 @@
   }
 
   const docName = () => (current.title || '노트').replace(/[\\/:*?"<>|]/g, ' ').trim()
-    + (exportKind === 'plain' ? '' : ` - ${exportSheet.querySelector(`.export-opt[data-kind="${exportKind}"] b`)?.textContent || '정리본'}`);
-  const currentDoc = () => exportDocs[exportKind];
+    + ` - ${TEMPLATES[exportTemplate].name}`;
 
-  exportSheet.querySelectorAll('.export-opt').forEach((b) => b.addEventListener('click', () => setKind(b.dataset.kind)));
-  $('exportRun').addEventListener('click', () => { delete exportDocs.custom; generate('custom'); });
+  exportSheet.querySelectorAll('.export-opt').forEach((b) => b.addEventListener('click', () => {
+    exportTemplate = b.dataset.template;
+    settings.exportTemplate = exportTemplate;
+    persist();
+    if (!generating) setStatus('');
+    refreshExport();
+  }));
+  $('exportAi').addEventListener('change', (e) => {
+    exportAi = e.target.checked;
+    if (!generating) setStatus('');
+    refreshExport();
+  });
   $('exportPrompt').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('exportRun').click(); }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('exportRedo').click(); }
   });
   $('exportStop').addEventListener('click', () => window.memo.aiCancel());
   $('exportRedo').addEventListener('click', () => {
-    if (exportKind === 'plain' || generating) return;
-    delete exportDocs[exportKind];
-    generate(exportKind);
+    if (!exportAi || generating) return;
+    delete exportDocs[exportTemplate];
+    generate(exportTemplate);
   });
   $('exportCopy').addEventListener('click', async () => {
     if (!currentDoc()) return;
@@ -1171,12 +1250,29 @@
     if (p) toast('Markdown으로 저장했어요');
   });
   $('exportPdf').addEventListener('click', async () => {
-    if (!currentDoc()) return;
+    if (!currentDoc() || generating) return;
     setStatus('PDF를 만드는 중…', true);
     $('exportStop').hidden = true;
-    const p = await window.memo.exportPdf({ name: docName(), title: current.title || '노트', html: mdToHtml(currentDoc()) });
+    const p = await window.memo.exportPdf({
+      name: docName(),
+      title: current.title || '노트',
+      template: exportTemplate,
+      html: templateHtml(exportTemplate, currentDoc(), docMeta()),
+    });
     setStatus(p ? 'PDF로 저장했어요' : '');
     if (p) toast('PDF로 저장했어요');
+  });
+  $('exportPng').addEventListener('click', async () => {
+    if (!currentDoc() || generating) return;
+    setStatus('이미지를 만드는 중…', true);
+    $('exportStop').hidden = true;
+    const p = await window.memo.exportPng({
+      name: docName(),
+      template: exportTemplate,
+      html: templateHtml(exportTemplate, currentDoc(), docMeta()),
+    });
+    setStatus(p ? '이미지로 저장했어요' : '');
+    if (p) toast('이미지로 저장했어요');
   });
   $('exportClose').addEventListener('click', closeExport);
   exportSheet.addEventListener('mousedown', (e) => { if (e.target === exportSheet) closeExport(); });
@@ -1298,7 +1394,7 @@
     }
     useProvider('claude');
     toast('API 키를 저장했어요');
-    if (exportAfterKey) { const k = exportAfterKey; exportAfterKey = false; closeKeySheet(); $('exportWho').textContent = 'Claude API로 다듬어요'; generate(k); } else refreshKey();
+    if (exportAfterKey) { const k = exportAfterKey; exportAfterKey = false; closeKeySheet(); $('exportWho').textContent = 'Claude API'; generate(k); } else refreshKey();
   }
 
   $('keySave').addEventListener('click', saveKey);

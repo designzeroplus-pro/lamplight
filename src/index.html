@@ -67,8 +67,6 @@
             </div>
             <div class="meta">
               <span id="date"></span>
-              <span class="sep">·</span>
-              <input class="attendees-input typed" id="attendees" placeholder="참석자" spellcheck="false" aria-label="참석자" />
             </div>
             <div class="rule"></div>
             <div class="editor" id="editor">
@@ -171,7 +169,7 @@
     <div class="palette" role="dialog" aria-label="노트 검색">
       <div class="palette-field">
         <svg viewBox="0 0 20 20"><circle cx="8.8" cy="8.8" r="5.3"/><path d="m12.8 12.8 4 4"/></svg>
-        <input id="paletteInput" placeholder="노트 검색 — 제목, 참석자, 내용" spellcheck="false" autocomplete="off" />
+        <input id="paletteInput" placeholder="노트 검색 — 제목, 내용" spellcheck="false" autocomplete="off" />
         <kbd>esc</kbd>
       </div>
       <div class="palette-label" id="paletteLabel">최근 노트</div>
@@ -184,7 +182,7 @@
     <div class="sheet ai-sheet" role="dialog" aria-labelledby="keyTitle">
       <div class="sheet-icon"><svg viewBox="0 0 20 20"><path d="M9 3.5l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M15 12.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg></div>
       <h2 id="keyTitle">AI 연결</h2>
-      <p>내보내기에서 노트를 회의록 · 보고서 · 이메일 등으로 다듬어 줘요.</p>
+      <p>내보내기에서 글을 고른 템플릿에 어울리게 다듬어 줘요. 이메일에는 편지로, 영수증에는 하루의 품목으로.</p>
 
       <div class="seg provider" id="aiProvider" role="radiogroup" aria-label="요약에 쓸 AI">
         <button data-v="chatgpt" role="radio">ChatGPT 구독</button>
@@ -280,16 +278,16 @@
       <div class="ob-step" data-step="0">
         <div class="ob-lamp" aria-hidden="true"><i></i></div>
         <h2 id="obTitle">작은 램프 아래의 노트</h2>
-        <p>타자기처럼 한 글자씩 적어 보세요. 다 쓰면 PDF로 내보내거나, ChatGPT로 회의록 · 보고서 · 이메일처럼 다듬어 내보낼 수 있어요.</p>
+        <p>타자기처럼 한 글자씩 적어 보세요. 다 쓰면 메모장 · 이메일 · 도트 프린터 영수증 같은 레트로 템플릿으로 내보낼 수 있어요.</p>
         <ul class="ob-list">
-          <li><b>⌘E</b> 내보내기 (PDF · Markdown · AI 정리)</li>
+          <li><b>⌘E</b> 템플릿으로 내보내기 (PDF · Markdown)</li>
           <li><b>⌘K</b> 모든 노트 검색</li>
           <li><b>⌘T</b> 지금 시각 적기</li>
         </ul>
       </div>
       <div class="ob-step" data-step="1">
         <h2>ChatGPT 연결 (선택)</h2>
-        <p>ChatGPT Plus · Pro 계정으로 로그인하면 내보내기에서 노트를 회의록, 보고서, 이메일, 발표 개요 등으로 다듬어 줘요. Claude API 키도 쓸 수 있어요. 나중에 설정에서 해도 돼요.</p>
+        <p>ChatGPT Plus · Pro 계정으로 로그인하면 내보내기에서 글을 템플릿에 어울리게 다듬어 줘요. Claude API 키도 쓸 수 있어요. 나중에 설정에서 해도 돼요.</p>
         <button class="btn wide" id="obKey">AI 연결하기</button>
       </div>
       <div class="ob-foot">
@@ -305,22 +303,25 @@
     <div class="sheet export-sheet" role="dialog" aria-labelledby="exportTitle">
       <aside class="export-side">
         <h2 id="exportTitle">내보내기</h2>
-        <div class="export-label">그대로</div>
-        <button class="export-opt" data-kind="plain"><b>원문</b><small>쓴 그대로 깔끔한 문서로</small></button>
-        <div class="export-label">AI로 다듬기 <span id="exportWho"></span></div>
-        <button class="export-opt" data-kind="minutes"><b>정리된 회의록</b><small>개요 · 논의 · 결정 · 할 일</small></button>
-        <button class="export-opt" data-kind="report"><b>보고서</b><small>요약 · 배경 · 내용 · 다음 단계</small></button>
-        <button class="export-opt" data-kind="email"><b>이메일 초안</b><small>바로 보낼 수 있는 업무 메일</small></button>
-        <button class="export-opt" data-kind="summary"><b>한 장 요약</b><small>결론과 핵심 몇 줄</small></button>
-        <button class="export-opt" data-kind="todo"><b>할 일 목록</b><small>담당 · 기한 체크리스트</small></button>
-        <button class="export-opt" data-kind="slides"><b>발표 개요</b><small>슬라이드별 제목과 요점</small></button>
-        <button class="export-opt" data-kind="custom"><b>직접 요청</b><small>원하는 형식을 적어서</small></button>
+        <div class="export-label">템플릿</div>
+        <button class="export-opt" data-template="notepad"><i class="tpl-thumb" aria-hidden="true"></i><b>메모장</b><small>윈도우 95 메모장 창에</small></button>
+        <button class="export-opt" data-template="mail"><i class="tpl-thumb" aria-hidden="true"></i><b>이메일</b><small>미래의 나에게 보내는 메일</small></button>
+        <button class="export-opt" data-template="receipt"><i class="tpl-thumb" aria-hidden="true"></i><b>오늘의 영수증</b><small>도트 프린터로 뽑은 하루</small></button>
+        <button class="export-opt" data-template="bbs"><i class="tpl-thumb" aria-hidden="true"></i><b>PC통신 게시판</b><small>파란 화면 게시판에 올린 글</small></button>
+        <button class="export-opt" data-template="terminal"><i class="tpl-thumb" aria-hidden="true"></i><b>CRT 터미널</b><small>초록 화면에 깜빡이는 시</small></button>
+        <button class="export-opt" data-template="msgbox"><i class="tpl-thumb" aria-hidden="true"></i><b>메시지 상자</b><small>확인 버튼이 있는 알림창</small></button>
+        <button class="export-opt" data-template="desktop"><i class="tpl-thumb" aria-hidden="true"></i><b>바탕화면</b><small>한 줄을 SNS용 이미지로</small></button>
+        <div class="export-label">AI로 어울리게 다듬기 <span id="exportWho"></span></div>
+        <label class="export-ai">
+          <span><b id="exportAiTitle">다듬기</b><small id="exportAiNote"></small></span>
+          <input type="checkbox" class="switch" id="exportAi" />
+        </label>
+        <div class="export-custom" id="exportCustom" hidden>
+          <textarea id="exportPrompt" rows="3" placeholder="더 바라는 점이 있으면 적어 주세요 (선택, ⌘↩ 다시 만들기)"></textarea>
+        </div>
+        <p class="export-privacy" id="exportPrivacy" hidden></p>
       </aside>
       <section class="export-main">
-        <div class="export-custom" id="exportCustom" hidden>
-          <textarea id="exportPrompt" rows="2" placeholder="예: 투자자에게 보낼 한 페이지 업데이트로 바꿔줘  (⌘↩ 만들기)"></textarea>
-          <button class="btn primary" id="exportRun">만들기</button>
-        </div>
         <div class="export-page"><article class="export-preview doc" id="exportPreview"></article></div>
         <div class="export-actions">
           <span class="export-status" id="exportStatus"></span>
@@ -329,6 +330,7 @@
           <button class="btn" id="exportRedo" title="다시 만들기">다시 만들기</button>
           <button class="btn" id="exportCopy">복사</button>
           <button class="btn" id="exportMd">Markdown</button>
+          <button class="btn" id="exportPng">이미지로 저장</button>
           <button class="btn primary" id="exportPdf">PDF로 저장</button>
           <button class="btn" id="exportClose">닫기</button>
         </div>
