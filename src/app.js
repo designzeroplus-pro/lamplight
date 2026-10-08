@@ -1035,6 +1035,41 @@
     'lt-crayon': stationery('아기자기', '색연필', '해님 · 구름 · 하트 낙서', '아이처럼 솔직하게', '짧고 솔직한 문장으로 맞춥니다.'),
     'lt-wax': stationery('미니멀', '실링왁스', '코튼지에 붉은 왁스 봉인', '단정하고 깊이 있게', '단정하고 깊이 있는 문장으로 맞춥니다.'),
     'lt-gold': stationery('미니멀', '금박 테두리', '아이보리 카드와 모노그램', '정중하고 품위 있게', '정중하고 품위 있는 문장으로 맞춥니다.'),
+    'tp-slide': {
+      group: '타이포그래피', name: '슬라이드', desc: '검정 화면에 큰 제목 (16:9)',
+      ai: '제목 다듬기', aiNote: '슬라이드에 어울리는 짧은 제목으로',
+      ask: '이 글의 제목을 슬라이드 표지에 어울리게 짧고 힘 있게(20자 안팎) 다듬어 주세요. 글의 내용에서 벗어나지 않습니다. 형식은 그대로: 맨 위 "# 제목", 날짜 줄, "---", 그 아래 원래 본문.',
+    },
+    'tp-orange': {
+      group: '타이포그래피', name: '오렌지 슬라이드', desc: '큰 숫자와 쌓인 단어 (16:9)',
+      ai: '세 마디로', aiNote: '핵심을 짧은 세 줄로',
+      ask: '이 글을 슬라이드에 올릴 짧은 세 줄로 줄여 주세요. 형식: 맨 위 "# " 뒤에 아주 짧은 제목(10자 안팎), 날짜 줄, "---", 그 아래 한 줄에 하나씩 짧은 구절 3개(각 12자 안팎). 글쓴이의 말을 살리고 지어내지 않습니다.',
+    },
+    'tp-specimen': {
+      group: '타이포그래피', name: '타입 포스터', desc: '보라 바탕에 한 문장을 크게 (4:5)',
+      ai: '한 문장 고르기', aiNote: '포스터에 크게 실을 문장 하나',
+      ask: '이 글에서 포스터에 크게 실을 문장 하나를 골라 주세요. 형식: 맨 위 "# 제목"(원래 제목), 날짜 줄, "---", 그 아래 그 문장 하나(30자 안팎). 글쓴이의 문장을 그대로 씁니다.',
+    },
+    'tp-bold': {
+      group: '타이포그래피', name: '볼드 포스터', desc: '가운데 큰 세리프 제목 (4:5)',
+      ai: '제목 다듬기', aiNote: '포스터 제목처럼 짧고 굵게',
+      ask: '이 글의 제목을 포스터에 크게 들어갈 짧은 문구(4~12자)로 다듬어 주세요. 글의 내용에서 벗어나지 않습니다. 형식은 그대로: 맨 위 "# 제목", 날짜 줄, "---", 그 아래 원래 본문.',
+    },
+    'tp-manifesto': {
+      group: '타이포그래피', name: '선언문', desc: '가운데 큰 대문자 문장 (4:3)',
+      ai: '한 문장으로', aiNote: '선언문처럼 단단한 한 문장',
+      ask: '이 글의 요지를 선언문처럼 단단한 한 문장(30자 안팎)으로 써 주세요. 글쓴이의 말을 살리고 지어내지 않습니다. 형식: 맨 위 "# 제목"(원래 제목), 날짜 줄, "---", 그 아래 그 문장 하나.',
+    },
+    'tp-list': {
+      group: '타이포그래피', name: '리스트', desc: '쉼표로 이어지는 큰 파란 줄 (4:5)',
+      ai: '항목으로 정리', aiNote: '짧은 구절 여러 줄로',
+      ask: '이 글을 짧은 구절 4~7개로 정리해 주세요. 형식: 맨 위 "# 제목"(원래 제목), 날짜 줄, "---", 그 아래 한 줄에 하나씩 구절(각 15자 안팎, 끝에 문장부호 없이). 글쓴이의 말을 살리고 지어내지 않습니다.',
+    },
+    'tp-editorial': {
+      group: '타이포그래피', name: '에디토리얼', desc: '파스텔 바탕의 세리프 문단 (4:5)',
+      ai: '문단 다듬기', aiNote: '잡지 첫 문단처럼',
+      ask: '이 글을 잡지 기사의 첫 문단처럼 매끄럽게 다듬어 주세요. 형식: 맨 위 "# 제목"(원래 제목), 날짜 줄, "---", 그 아래 첫 문단(80자 안팎) 하나와 짧은 문장 2~4개를 각각 한 줄씩. 글쓴이의 말과 사실만 씁니다.',
+    },
     notepad: {
       group: '레트로',
       desc: '윈도우 95 메모장 창에',
@@ -1135,6 +1170,14 @@
   function showDoc(md) {
     preview.dataset.template = exportTemplate;
     preview.innerHTML = templateHtml(exportTemplate, md, docMeta());
+    fitPreview();
+  }
+
+  // Wide pages (the 16:9 slides) are shown scaled down to fit the preview.
+  function fitPreview() {
+    preview.style.zoom = '';
+    const room = preview.parentElement.clientWidth - 36;
+    if (room > 0 && preview.offsetWidth > room) preview.style.zoom = String(room / preview.offsetWidth);
   }
 
   function showHint(text) {
@@ -1256,7 +1299,7 @@
 
   /* The template list: tiles grouped by mood, each a live miniature of the
    * real paper (rendered once, scaled to fit when the sheet first opens). */
-  const GROUPS = ['클래식', '계절·기념일', '아기자기', '미니멀', '레트로'];
+  const GROUPS = ['클래식', '계절·기념일', '아기자기', '미니멀', '타이포그래피', '레트로'];
   const SAMPLE = '# 오늘의 메모\n\n2026. 10. 08.\n\n---\n\n아침에 커피 두 잔.\n오후엔 산책을 했다.\n\n- 장보기 ··· 우유\n\n> 오늘도 수고했어';
   const SAMPLE_META = { seed: 'sample', title: '오늘의 메모', date: '2026.10.08' };
   let thumbsFitted = false;

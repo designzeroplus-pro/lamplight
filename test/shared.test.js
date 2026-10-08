@@ -129,3 +129,21 @@ test('templateHtml stamps the wax seal and monogram with the first letter of the
   assert.match(templateHtml('lt-wax', '# kim\n\n본문'), />K<\/text>/);
   assert.match(templateHtml('lt-gold', '본문', {}), /<div class="lt-monogram"><span>L<\/span><\/div>/);
 });
+
+test('templateHtml sets typographic posters from the title and lines', () => {
+  const md = '# 비 오는 날\n\n2026. 10. 08.\n\n---\n\n마음이 놓였다.\n\n- 커피 두 잔\n- <통화>';
+  const meta = { date: '2026.10.08' };
+  assert.match(templateHtml('tp-slide', md, meta), /<h2 class="tp-big sz-1">비 오는 날<\/h2>/);
+  assert.match(templateHtml('tp-orange', md, meta), /<li>마음이 놓였다\.<\/li><li class="dim">커피 두 잔<\/li><li class="dim">&lt;통화&gt;<\/li>/);
+  assert.match(templateHtml('tp-manifesto', md, meta), /<p class="tp-num">\( 08 \)<\/p>/);
+  assert.match(templateHtml('tp-list', md, meta), /<li>마음이 놓였다,<\/li><li>커피 두 잔,<\/li><li>&lt;통화&gt;\.<\/li>/);
+  assert.match(templateHtml('tp-specimen', md, meta), /^<p class="tp-big sz-1">마음이 놓였다\.<\/p>/);
+  assert.match(templateHtml('tp-bold', '본문만', { title: '제목' }), /<h2 class="tp-big sz-1">제목<\/h2>/);
+});
+
+test('typographic text steps down in size as it gets longer', () => {
+  const big = (t) => templateHtml('tp-specimen', `# 제목\n\n${t}`).match(/tp-big (sz-\d)/)[1];
+  assert.equal(big('짧다'), 'sz-1');
+  assert.equal(big('가'.repeat(40)), 'sz-3');
+  assert.equal(big('가'.repeat(200)), 'sz-5');
+});

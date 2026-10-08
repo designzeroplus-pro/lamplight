@@ -224,11 +224,75 @@ ${[0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path d="M65 28V12" stroke="#
 ${when ? line('lt-date', when) : ''}</div>`;
   }
 
+  /* Typographic templates (keys start with "tp-"): posters and slides built
+   * from the note's title, date and lines. Text sizes step down with length
+   * (sz-1 … sz-4) so a short line fills the page and a long one still fits. */
+  const plainLines = (html) => html
+    .replace(/<br>/g, '\n')
+    .split(/<\/(?:p|li|h[1-3]|blockquote)>/)
+    .flatMap((s) => s.replace(/<[^>]*>/g, '').split('\n'))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const visibleLength = (t) => t.replace(/&[#a-z0-9]+;/gi, '_').length;
+  const sizeClass = (t, steps) => {
+    const n = visibleLength(t);
+    const i = steps.findIndex((max) => n <= max);
+    return `sz-${i === -1 ? steps.length + 1 : i + 1}`;
+  };
+  const lampBadge = svg('tp-badge', 92, 104, `<defs><linearGradient id="badge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5fe3ee"/><stop offset="1" stop-color="#159fb4"/></linearGradient></defs>
+<path d="M46 3L88 27V77L46 101L4 77V27Z" fill="url(#badge)" stroke="#0e7f91" stroke-width="2"/><path d="M46 12L80 32V72L46 92L12 72V32Z" fill="none" stroke="#a9f4fa" stroke-width="1.5" opacity=".6"/>
+<path d="M30 46H62L58 38H34Z" fill="#0d6f80"/><path d="M46 46V66M38 70H54" stroke="#0d6f80" stroke-width="4" stroke-linecap="round"/><circle cx="46" cy="52" r="4" fill="#fff6cf"/>`);
+
+  function typoHtml(template, html, meta) {
+    const { head, date: noteDate, body } = splitHead(html);
+    const title = head || escHtml(meta.title) || '제목 없음';
+    const when = noteDate || escHtml(meta.date);
+    const lines = plainLines(body);
+    const first = lines[0] || title;
+    const rest = lines.slice(1);
+    const day = (String(meta.date || '').match(/(\d{1,2})$/) || [])[1] || '01';
+    switch (template) {
+      case 'tp-slide':
+        return `<header class="tp-bar"><span>LAMPLIGHT</span><span>${when}</span></header>
+<p class="tp-num">01</p>
+<h2 class="tp-big ${sizeClass(title, [16, 30, 60])}">${title}</h2>
+<footer class="tp-bar"><span>${escHtml(meta.date)}</span><span>lamplight</span></footer>`;
+      case 'tp-orange': {
+        const stack = (lines.length ? lines.slice(0, 3) : [title]).map((l, i) => `<li${i ? ' class="dim"' : ''}>${l}</li>`).join('');
+        return `<p class="tp-num">01</p><ul class="tp-stack ${sizeClass(lines.slice(0, 3).join(''), [24, 60])}">${stack}</ul>
+<h2 class="tp-big ${sizeClass(title, [10, 24, 50])}">${title}</h2>
+<footer class="tp-foot"><span>LAMPLIGHT</span><span class="tp-pill">${when}</span><span>${day}</span></footer>`;
+      }
+      case 'tp-specimen':
+        return `<p class="tp-big ${sizeClass(first, [14, 32, 64, 120])}">${first}</p>
+<div class="tp-spec"><p>${title} · ${when}</p><p>가나다라마바사아자차카타파하</p><p>ABCDEFGHIJKLMNOPQRSTUVWXYZ</p><p>abcdefghijklmnopqrstuvwxyz</p><p>1234567890(.,?!”)</p></div>`;
+      case 'tp-bold':
+        return `<h2 class="tp-big ${sizeClass(title, [8, 16, 32, 60])}">${title}</h2>${lampBadge}<p class="tp-date">${when}</p>`;
+      case 'tp-manifesto':
+        return `<header class="tp-corners"><span>LAMPLIGHT<br>메모</span><span>${title}</span><span>WRITTEN<br>${when}</span></header>
+<p class="tp-num">( ${day} )</p>
+<p class="tp-big ${sizeClass(first, [16, 40, 80, 140])}">${first}</p>
+<footer class="tp-corners"><span>AN IMPORTANT NOTE</span><span>PUBLISHED IN ${String(meta.date || '').slice(0, 4) || 'LAMPLIGHT'}</span></footer>`;
+      case 'tp-list': {
+        const items = (lines.length ? lines.slice(0, 7) : [title]);
+        const list = items.map((l, i) => `<li>${l.replace(/[.,!?…·]+$/, '')}${i === items.length - 1 ? '.' : ','}</li>`).join('');
+        return `<p class="tp-label">${title}</p><ul class="tp-big ${sizeClass(items.join(''), [60, 120, 220])}">${list}</ul>
+<div class="tp-note"><b>${title}</b><p>${lines.slice(7).join(' ') || when}</p></div>`;
+      }
+      case 'tp-editorial':
+        return `<p class="tp-big ${sizeClass(title + first, [40, 90, 160])}">${title}<sup>${when}</sup> ${lines.length ? first : ''}</p>
+<div class="tp-note">${rest.map((l) => `<p>${l}</p>`).join('') || `<p>${when}</p>`}</div>`;
+      default:
+        return html;
+    }
+  }
+
   function templateHtml(template, md, meta = {}) {
     const html = mdToHtml(md);
     const title = escHtml(meta.title) || '제목 없음';
     const date = escHtml(meta.date);
     if (template.startsWith('lt-')) return paperHtml(template, html, meta);
+    if (template.startsWith('tp-')) return typoHtml(template, html, meta);
     const { head, date: noteDate, body } = splitHead(html);
     switch (template) {
       case 'notepad':

@@ -601,3 +601,106 @@
 }
 .doc[data-template='lt-wax'] .lt-heading,
 .doc[data-template='lt-gold'] .lt-heading { text-align: center; font-weight: 700; letter-spacing: 0.06em; }
+
+/* ───────── typography ─────────
+ * Posters and slides set from the note: Inter for Latin, Noto Sans KR for
+ * Hangul (Noto Serif KR for the serif ones). Sizes step down by length. */
+.doc[data-template^='tp-'] {
+  position: relative;
+  overflow: hidden;
+  max-width: none;
+  font-family: 'Inter', 'Noto Sans KR', sans-serif;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.doc[data-template^='tp-'] p,
+.doc[data-template^='tp-'] h2,
+.doc[data-template^='tp-'] ul { margin: 0; padding: 0; list-style: none; font-weight: inherit; }
+.doc[data-template^='tp-'] .hint { position: relative; padding: 0 24px; color: inherit; opacity: 0.6; }
+
+/* 슬라이드: black, a hairline header and footer, a big title at the bottom. */
+.doc[data-template='tp-slide'] { display: flex; flex-direction: column; width: 960px; height: 540px; padding: 26px 40px 22px; color: #fff; background: #050505; }
+.doc[data-template='tp-slide'] .tp-bar { display: flex; justify-content: space-between; padding-bottom: 9px; font-size: 11px; letter-spacing: 0.01em; border-bottom: 1px solid rgba(255, 255, 255, 0.22); }
+.doc[data-template='tp-slide'] footer.tp-bar { padding: 9px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.22); border-bottom: 0; }
+.doc[data-template='tp-slide'] .tp-num { margin-top: 22px; font-size: 46px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; }
+.doc[data-template='tp-slide'] .tp-big { max-width: 72%; margin: auto 0 26px; font-size: 64px; font-weight: 600; line-height: 1.08; letter-spacing: -0.025em; }
+.doc[data-template='tp-slide'] .tp-big.sz-2 { font-size: 52px; }
+.doc[data-template='tp-slide'] .tp-big.sz-3 { font-size: 40px; }
+.doc[data-template='tp-slide'] .tp-big.sz-4 { font-size: 30px; }
+
+/* 오렌지 슬라이드: a huge number, stacked lines (the first in full ink), a huge title. */
+.doc[data-template='tp-orange'] { width: 960px; height: 540px; color: #111; background: #ef6c37; }
+.doc[data-template='tp-orange'] .tp-num { position: absolute; top: 6px; left: 22px; font-size: 112px; line-height: 1; letter-spacing: -0.05em; }
+.doc[data-template='tp-orange'] .tp-stack { position: absolute; top: 12px; right: 26px; max-width: 60%; text-align: right; font-size: 72px; line-height: 0.98; letter-spacing: -0.035em; }
+.doc[data-template='tp-orange'] .tp-stack.sz-2 { font-size: 50px; }
+.doc[data-template='tp-orange'] .tp-stack.sz-3 { font-size: 34px; line-height: 1.06; }
+.doc[data-template='tp-orange'] .tp-stack .dim { color: rgba(170, 52, 22, 0.62); }
+.doc[data-template='tp-orange'] .tp-big { position: absolute; left: 20px; bottom: 36px; max-width: 64%; font-size: 124px; line-height: 0.94; letter-spacing: -0.05em; }
+.doc[data-template='tp-orange'] .tp-big.sz-2 { font-size: 90px; }
+.doc[data-template='tp-orange'] .tp-big.sz-3 { font-size: 64px; }
+.doc[data-template='tp-orange'] .tp-big.sz-4 { font-size: 44px; line-height: 1.02; }
+.doc[data-template='tp-orange'] .tp-foot { position: absolute; left: 20px; right: 22px; bottom: 10px; display: flex; align-items: center; gap: 70px; font-size: 9.5px; }
+.doc[data-template='tp-orange'] .tp-pill { padding: 1px 10px; border: 1px solid #111; border-radius: 99px; }
+.doc[data-template='tp-orange'] .tp-foot span:last-child { margin-left: auto; }
+
+/* 타입 포스터: lavender on deep purple, one line very large, a glyph specimen. */
+.doc[data-template='tp-specimen'] { width: 720px; height: 900px; padding: 30px 36px; color: #c9aef5; background: #1f0538; }
+.doc[data-template='tp-specimen'] .tp-big { font-size: 108px; font-weight: 500; line-height: 1.02; letter-spacing: -0.04em; }
+.doc[data-template='tp-specimen'] .tp-big.sz-2 { font-size: 84px; }
+.doc[data-template='tp-specimen'] .tp-big.sz-3 { font-size: 62px; }
+.doc[data-template='tp-specimen'] .tp-big.sz-4 { font-size: 46px; line-height: 1.1; }
+.doc[data-template='tp-specimen'] .tp-big.sz-5 { font-size: 34px; line-height: 1.18; }
+.doc[data-template='tp-specimen'] .tp-spec { position: absolute; left: 36px; right: 36px; bottom: 30px; font-size: 29px; line-height: 1.06; letter-spacing: -0.025em; }
+.doc[data-template='tp-specimen'] .tp-spec p:first-child { margin-bottom: 12px; font-size: 14px; letter-spacing: 0; opacity: 0.7; }
+
+/* 볼드 포스터: centred serif capitals in green on deep teal, with a badge. */
+.doc[data-template='tp-bold'] { display: grid; place-items: center; width: 720px; height: 900px; padding: 60px 40px; color: #5cdc24; background: #052c2b; }
+.doc[data-template='tp-bold'] .tp-big { font-family: 'Noto Serif KR', 'Cormorant Garamond', serif; font-size: 128px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; text-align: center; text-transform: uppercase; }
+.doc[data-template='tp-bold'] .tp-big.sz-2 { font-size: 100px; }
+.doc[data-template='tp-bold'] .tp-big.sz-3 { font-size: 74px; line-height: 1.06; }
+.doc[data-template='tp-bold'] .tp-big.sz-4 { font-size: 54px; line-height: 1.12; }
+.doc[data-template='tp-bold'] .tp-big.sz-5 { font-size: 38px; line-height: 1.2; }
+.doc[data-template='tp-bold'] .tp-badge { position: absolute; top: 50%; left: 50%; margin: -52px 0 0 -46px; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)); }
+.doc[data-template='tp-bold'] .tp-date { position: absolute; left: 0; right: 0; bottom: 26px; text-align: center; font: 12px 'IBM Plex Mono', monospace; letter-spacing: 0.12em; color: rgba(92, 220, 36, 0.6); }
+
+/* 선언문: cream, mono corner labels, a number in brackets, a centred statement. */
+.doc[data-template='tp-manifesto'] { display: flex; flex-direction: column; width: 960px; height: 720px; padding: 22px 26px 64px; color: #111; background: #f3f1ec; }
+.doc[data-template='tp-manifesto'] .tp-corners { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; font: 10px/1.35 'IBM Plex Mono', 'Nanum Gothic Coding', monospace; letter-spacing: 0.02em; text-transform: uppercase; }
+.doc[data-template='tp-manifesto'] .tp-corners span:last-child { text-align: right; }
+.doc[data-template='tp-manifesto'] footer.tp-corners { position: absolute; left: 26px; right: 26px; bottom: 20px; grid-template-columns: 1fr 1fr; }
+.doc[data-template='tp-manifesto'] .tp-num { margin: auto 0 30px; text-align: center; font-size: 66px; line-height: 1; letter-spacing: -0.03em; }
+.doc[data-template='tp-manifesto'] .tp-big { max-width: 84%; margin: 0 auto auto; text-align: center; text-transform: uppercase; font-size: 88px; font-weight: 500; line-height: 0.95; letter-spacing: -0.05em; }
+.doc[data-template='tp-manifesto'] .tp-big.sz-2 { font-size: 66px; }
+.doc[data-template='tp-manifesto'] .tp-big.sz-3 { font-size: 48px; line-height: 1.02; }
+.doc[data-template='tp-manifesto'] .tp-big.sz-4 { font-size: 36px; line-height: 1.1; }
+.doc[data-template='tp-manifesto'] .tp-big.sz-5 { font-size: 27px; line-height: 1.2; letter-spacing: -0.03em; }
+
+/* 리스트: big blue lines ending in commas, a small note at the bottom right. */
+.doc[data-template='tp-list'] { width: 720px; height: 900px; padding: 44px 34px; color: #1c2fe2; background: #f8f7f2; }
+.doc[data-template='tp-list'] .tp-label { margin-bottom: 18px; font-size: 13px; }
+.doc[data-template='tp-list'] .tp-big li { font-size: 56px; font-weight: 500; line-height: 1.06; letter-spacing: -0.035em; }
+.doc[data-template='tp-list'] .tp-big.sz-2 li { font-size: 42px; }
+.doc[data-template='tp-list'] .tp-big.sz-3 li { font-size: 31px; line-height: 1.12; }
+.doc[data-template='tp-list'] .tp-big.sz-4 li { font-size: 23px; line-height: 1.2; letter-spacing: -0.02em; }
+.doc[data-template='tp-list'] .tp-note { position: absolute; right: 40px; bottom: 40px; width: 270px; font-size: 12.5px; line-height: 1.45; color: #222; }
+.doc[data-template='tp-list'] .tp-note b { display: block; margin-bottom: 4px; font-size: 16px; font-weight: 500; color: #111; }
+
+/* 에디토리얼: a soft pastel wash, a large serif paragraph with tiny notes. */
+.doc[data-template='tp-editorial'] {
+  width: 720px;
+  height: 900px;
+  padding: 40px 36px;
+  font-family: 'Noto Serif KR', 'Cormorant Garamond', serif;
+  color: #8a7fd9;
+  background:
+    radial-gradient(ellipse 70% 40% at 20% 10%, rgba(255, 255, 255, 0.9), transparent 70%),
+    radial-gradient(ellipse 80% 50% at 80% 95%, rgba(255, 214, 190, 0.9), transparent 70%),
+    linear-gradient(180deg, #edf3ff 0%, #f3f1fb 45%, #fbe8dc 100%);
+}
+.doc[data-template='tp-editorial'] .tp-big { font-size: 54px; line-height: 1.16; letter-spacing: -0.015em; text-shadow: 0 0 0.6px rgba(138, 127, 217, 0.6); }
+.doc[data-template='tp-editorial'] .tp-big.sz-2 { font-size: 45px; }
+.doc[data-template='tp-editorial'] .tp-big.sz-3 { font-size: 35px; line-height: 1.22; }
+.doc[data-template='tp-editorial'] .tp-big.sz-4 { font-size: 27px; line-height: 1.3; }
+.doc[data-template='tp-editorial'] sup { margin: 0 6px 0 3px; font: 9px 'Inter', sans-serif; letter-spacing: 0.04em; vertical-align: 2.2em; opacity: 0.8; }
+.doc[data-template='tp-editorial'] .tp-note { position: absolute; right: 36px; bottom: 40px; width: 300px; font-size: 12px; line-height: 1.6; color: rgba(110, 100, 170, 0.8); }
+.doc[data-template='tp-editorial'] .tp-note p { margin-bottom: 6px; }

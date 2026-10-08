@@ -277,6 +277,7 @@ ipcMain.handle('export:note', async (_e, { name, content }) => {
 const TEMPLATES = [
   'lt-lined', 'lt-kraft', 'lt-genko', 'lt-airmail', 'lt-birthday', 'lt-xmas', 'lt-spring', 'lt-autumn',
   'lt-thanks', 'lt-tape', 'lt-crayon', 'lt-wax', 'lt-gold',
+  'tp-slide', 'tp-orange', 'tp-specimen', 'tp-bold', 'tp-manifesto', 'tp-list', 'tp-editorial',
   'notepad', 'mail', 'receipt', 'bbs', 'terminal', 'msgbox', 'desktop',
 ];
 
