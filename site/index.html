@@ -297,6 +297,12 @@
     /* ───── cta + footer ───── */
     .final { padding: 140px 0 120px; }
     .final .lede { margin-bottom: 30px; }
+    .steps { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 860px; margin: 44px auto 0; padding: 0; text-align: left; }
+    .steps li { display: flex; gap: 12px; padding: 18px 18px 20px; border-radius: 12px; background: var(--card); box-shadow: 0 0 0 1px var(--line); font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+    .steps b { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--btn); color: var(--btn-text); font: 600 12px var(--sans); }
+    .steps strong { display: block; margin-bottom: 3px; font-size: 14.5px; font-weight: 600; color: var(--text); }
+    .steps em { font-style: normal; color: var(--accent); }
+    @media (max-width: 820px) { .steps { grid-template-columns: 1fr; } }
     footer { border-top: 1px solid var(--line); padding: 44px 0 60px; font-size: 13.5px; color: var(--muted); }
     footer .wrap { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
     footer .cols { display: flex; gap: 64px; flex-wrap: wrap; }
@@ -345,7 +351,7 @@
           <a data-arch="x64" href="#">Intel Mac<small data-file="x64">Intel용 DMG</small></a>
         </div>
       </div>
-      <div class="fineprint">무료 · macOS · 버전 <span data-ver></span></div>
+      <div class="fineprint">무료 · macOS · 버전 <span data-ver></span> · 앱 안에서 자동 업데이트</div>
 
       <div class="window" id="demo" style="--lx: 58%">
         <div class="titlebar">
@@ -493,7 +499,12 @@
           <a data-arch="x64" href="#">Intel Mac<small data-file="x64">Intel용 DMG</small></a>
         </div>
       </div>
-      <p class="fineprint">처음 열 때 시스템 설정 › 개인정보 보호 및 보안에서 “그래도 열기”를 한 번 눌러 주세요.<br />새 버전이 나오면 앱이 알려 드려요.</p>
+      <ol class="steps">
+        <li><b>1</b><div><strong>응용 프로그램 폴더로</strong>받은 DMG를 열고 Lamplight를 Applications 폴더로 끌어 놓으세요.</div></li>
+        <li><b>2</b><div><strong>처음 한 번만 “그래도 열기”</strong>서명 없는 앱이라 처음 열 때 시스템 설정 › 개인정보 보호 및 보안에서 눌러 주세요.</div></li>
+        <li><b>3</b><div><strong>업데이트는 앱이 알아서</strong>새 버전이 나오면 알림에서 <em>업데이트</em>를 누르세요. 받아서 확인하고, 설치한 뒤 다시 켜져요.</div></li>
+      </ol>
+      <p class="fineprint">0.4.0 이하를 쓰고 있다면 한 번만 새로 받아 설치해 주세요. 그다음부터는 앱이 업데이트해요.</p>
     </div>
   </section>
 </main>
