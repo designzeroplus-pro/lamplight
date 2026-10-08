@@ -1,0 +1,60 @@
+/* Lamplight promo film: 1920 × 1080, rendered frame by frame (render.js). */
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0b0a09; }
+#film { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: 'Inter', 'Noto Sans KR', sans-serif; color: #f1ebe0; }
+.scene { position: absolute; inset: 0; opacity: 0; }
+
+/* 1 · the sheet under the lamp */
+#sType { background: radial-gradient(ellipse 70% 60% at 50% 55%, #1c1915, #0b0a09 70%); }
+.sheet {
+  position: absolute;
+  left: 50%;
+  top: 170px;
+  transform-origin: 50% 0;
+  width: 1180px;
+  height: 1100px;
+  margin-left: -590px;
+  padding: 110px 130px;
+  box-sizing: border-box;
+  color: #1b1916;
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .2  0 0 0 0 .17  0 0 0 0 .12  0 0 0 .08 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(255, 255, 255, 0.25), transparent 60%),
+    #f2ede2;
+  box-shadow: inset 0 0 120px rgba(120, 92, 56, 0.14), 0 50px 120px rgba(0, 0, 0, 0.6);
+}
+.typed { margin: 0; font-family: 'Courier Prime', 'Nanum Gothic Coding', monospace; white-space: pre-wrap; }
+.typed span { opacity: 0; }
+.typed span.on { opacity: 1; }
+.title { font-size: 58px; font-weight: 700; line-height: 1.3; color: color-mix(in srgb, #1b1916 62%, #f2ede2); text-shadow: -0.6px -1.6px 0 rgba(255, 253, 246, 0.85), 0.35px 0.95px 0 rgba(30, 22, 14, 0.3); }
+.date { margin: 14px 0 0; font: 22px 'Courier Prime', 'Nanum Gothic Coding', monospace; letter-spacing: 0.04em; color: rgba(27, 25, 22, 0.55); }
+.rule { height: 1px; margin: 36px 0 44px; background-image: linear-gradient(90deg, rgba(27, 25, 22, 0.35) 0 9px, transparent 9px 16px); background-size: 16px 1px; }
+.body { font-size: 36px; line-height: 1.95; color: color-mix(in srgb, #1b1916 74%, #f2ede2); text-shadow: 0.4px 1.05px 0 rgba(255, 253, 246, 0.85), -0.24px -0.63px 0 rgba(30, 22, 14, 0.3); }
+.caret { display: inline-block; width: 3px; height: 1em; margin-left: 2px; vertical-align: -0.12em; background: #c4622d; }
+.dark, .warm { position: absolute; inset: 0; pointer-events: none; }
+.warm { mix-blend-mode: screen; }
+
+/* 2 / 5 · cards */
+.card { display: grid; place-content: center; justify-items: center; gap: 0; text-align: center; background: radial-gradient(ellipse 50% 45% at 50% 42%, #2a2219, #0b0a09 70%); }
+.card h2 { margin: 26px 0 10px; font: 600 150px/1 'Inter', sans-serif; letter-spacing: -0.045em; color: #f6efe2; }
+.card p { margin: 0; font-size: 38px; letter-spacing: -0.01em; color: rgba(246, 239, 226, 0.7); }
+.card small { margin-top: 46px; font: 22px 'IBM Plex Mono', monospace; letter-spacing: 0.04em; color: rgba(246, 239, 226, 0.5); }
+.bulb { width: 26px; height: 26px; border-radius: 50%; background: #ffe4b0; box-shadow: 0 0 40px 16px rgba(255, 186, 110, 0.55), 0 0 160px 60px rgba(255, 170, 90, 0.18); }
+
+/* 3 · templates, one at a time */
+#sTpl { background: radial-gradient(ellipse 60% 55% at 50% 50%, #26211b, #0b0a09 72%); }
+.tpl-stage { position: absolute; inset: 0; }
+.tpl-frame { position: absolute; left: 50%; top: 50%; opacity: 0; transform-origin: 0 0; }
+.tpl-frame > .doc { margin: 0 !important; box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55); }
+.tpl-name { position: absolute; left: 0; right: 0; bottom: 46px; margin: 0; text-align: center; font: 500 26px 'Inter', 'Noto Sans KR', sans-serif; letter-spacing: 0.02em; color: rgba(246, 239, 226, 0.6); }
+
+/* 4 · the wall */
+#sWall { background: #0b0a09; }
+.wall { position: absolute; left: 50%; top: 50%; display: grid; grid-template-columns: repeat(9, 300px); grid-auto-rows: 330px; gap: 34px; transform-origin: 50% 50%; }
+.wall .cell { position: relative; overflow: hidden; }
+.scrim { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 40% at 50% 50%, #0b0a09, rgba(11, 10, 9, 0.7)); opacity: 0; }
+.wall .cell > .doc { position: absolute; top: 0; left: 0; margin: 0 !important; transform-origin: 0 0; max-width: none !important; }
+
+/* One pixel in the corner carries the frame number, so render.js can tell a
+ * fresh paint from a stale one. */
+.marker { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; }
+.caption { position: absolute; left: 0; right: 0; margin: 0; text-align: center; font: 500 46px 'Inter', 'Noto Sans KR', sans-serif; letter-spacing: -0.02em; color: #f6efe2; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6); opacity: 0; }

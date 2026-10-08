@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Lamplight promo</title>
+  <link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/courier-prime/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/nanum-gothic-coding/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/nanum-pen-script/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gaegu/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gaegu/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gowun-batang/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/gowun-batang/700.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/caveat/600.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/cormorant-garamond/700-italic.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/inter/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/inter/500.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/inter/600.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/noto-sans-kr/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/noto-sans-kr/500.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/noto-sans-kr/600.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/noto-serif-kr/400.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/noto-serif-kr/600.css" />
+  <link rel="stylesheet" href="../node_modules/@fontsource/ibm-plex-mono/400.css" />
+  <link rel="stylesheet" href="../src/fonts.css" />
+  <link rel="stylesheet" href="../src/doc.css" />
+  <link rel="stylesheet" href="promo.css" />
+</head>
+<body>
+  <main id="film">
+    <!-- 1. the lamp comes on over a sheet; a note is typed -->
+    <section class="scene" id="sType">
+      <article class="sheet" id="sheet">
+        <h1 class="typed title" id="title"></h1>
+        <p class="date">2026. 10. 08. (목)</p>
+        <div class="rule"></div>
+        <div class="typed body" id="body"></div>
+      </article>
+      <div class="dark" id="dark"></div>
+      <div class="warm" id="warm"></div>
+    </section>
+    <!-- 2. title card -->
+    <section class="scene card" id="sTitle">
+      <i class="bulb"></i>
+      <h2>Lamplight</h2>
+      <p>타자기 감성의 메모 앱</p>
+    </section>
+    <!-- 3. one note, many templates -->
+    <section class="scene" id="sTpl">
+      <div class="tpl-stage" id="stage"></div>
+      <p class="tpl-name" id="tplName"></p>
+    </section>
+    <!-- 4. the whole wall -->
+    <section class="scene" id="sWall"><div class="wall" id="wall"></div><div class="scrim" id="scrim"></div></section>
+    <!-- 5. outro -->
+    <section class="scene card" id="sEnd">
+      <i class="bulb"></i>
+      <h2>Lamplight</h2>
+      <p>macOS용 · 무료</p>
+      <small>github.com/designzeroplus-pro/lamplight</small>
+    </section>
+    <p class="caption" id="caption"></p>
+    <i class="marker" id="marker"></i>
+  </main>
+  <script src="../src/shared.js"></script>
+  <script src="../src/sound.js"></script>
+  <script src="promo.js"></script>
+</body>
+</html>

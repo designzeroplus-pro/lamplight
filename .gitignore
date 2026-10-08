@@ -5,3 +5,7 @@ native/bin/
 .DS_Store
 *.tmp
 .claude/settings.local.json
+
+# rendered promo film (re-render with promo/render.js + promo/encode.swift)
+promo/*.mp4
+promo/out/
