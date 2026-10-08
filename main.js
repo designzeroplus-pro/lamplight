@@ -546,10 +546,14 @@ function createWindow() {
 ai.register();
 chatgpt.register();
 
-/* Updates. macOS only lets a signed app replace itself, and these builds are
- * unsigned, so instead of installing silently we look for a newer release on
- * GitHub and offer the right DMG for this Mac. */
+/* Updates. A newer GitHub release shows a pill in the window. macOS's own
+ * updater only replaces signed apps, so updater.js installs it: the DMG for
+ * this Mac is downloaded, checked against GitHub's SHA-256 digest, and swapped
+ * in after quitting. Copies that can't replace themselves (run from a DMG, a
+ * read-only folder, or a release without digests) get the DMG to install by hand. */
 const pkg = require('./package.json');
+const updater = require('./updater');
+let pendingUpdate = null;
 
 function repoSlug() {
   const url = typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url || '';
@@ -569,9 +573,12 @@ async function checkForUpdates() {
     const rel = await res.json();
     const latest = String(rel.tag_name || '').replace(/^v/, '');
     if (!latest || !isNewer(latest, app.getVersion())) return { upToDate: true, version: app.getVersion() };
-    const dmgs = (rel.assets || []).filter((a) => a.name.endsWith('.dmg'));
-    const mine = dmgs.find((a) => (process.arch === 'arm64' ? /arm64/.test(a.name) : !/arm64/.test(a.name))) || dmgs[0];
-    const info = { version: latest, page: rel.html_url, download: mine?.browser_download_url || rel.html_url };
+    const mine = updater.pickAsset(rel.assets, process.arch);
+    const sha256 = updater.sha256Of(mine);
+    const bundle = updater.bundleOf(app.getPath('exe'));
+    const selfUpdate = !!(app.isPackaged && mine && sha256 && !(await updater.canReplace(bundle)));
+    const info = { version: latest, page: rel.html_url, download: mine?.browser_download_url || rel.html_url, size: mine?.size, sha256, selfUpdate };
+    pendingUpdate = info;
     win?.webContents.send('update:available', info);
     return info;
   } catch {
@@ -693,6 +700,40 @@ ipcMain.handle('backup:import', async () => {
 });
 
 ipcMain.handle('update:check', () => checkForUpdates());
+
+// Download, verify and stage the pending update, then quit so it can be swapped in.
+let installing = null;
+ipcMain.handle('update:install', () => {
+  if (installing) return installing;
+  const info = pendingUpdate;
+  if (!info?.selfUpdate) return { error: 'unavailable' };
+  const send = (p) => win?.webContents.send('update:progress', p);
+  const dmg = path.join(app.getPath('temp'), `Lamplight-${info.version}.dmg`);
+  installing = (async () => {
+    try {
+      const bundle = updater.bundleOf(app.getPath('exe'));
+      await updater.download(info.download, dmg, {
+        size: info.size,
+        sha256: info.sha256,
+        onProgress: (received, total) => send({ phase: 'download', received, total }),
+      });
+      send({ phase: 'install' });
+      const bundleId = await updater.plistValue(path.join(bundle, 'Contents', 'Info.plist'), 'CFBundleIdentifier');
+      const staged = await updater.stage({ dmg, bundle, version: info.version, bundleId });
+      send({ phase: 'restart' });
+      updater.swapAfterQuit(bundle, staged);
+      setTimeout(() => app.quit(), 400);
+      return { ok: true };
+    } catch (err) {
+      console.error('[update]', err?.message);
+      return { error: err?.message || 'failed' };
+    } finally {
+      fs.rm(dmg, { force: true }).catch(() => {});
+      installing = null;
+    }
+  })();
+  return installing;
+});
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('update:open', (_e, url) => {
   if (/^https:\/\/github\.com\//.test(String(url))) shell.openExternal(url);

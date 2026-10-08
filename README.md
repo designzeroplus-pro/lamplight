@@ -85,8 +85,15 @@ LINE Seed · 마루 부리는 Bold 한 가지 굵기만 들어 있어 본문도 
 내려받기: https://github.com/designzeroplus-pro/lamplight/releases
 
 서명 없는 개인 배포입니다. 처음 열 때 시스템 설정 › 개인정보 보호 및 보안에서 "그래도 열기"를 한 번 누르면 됩니다.
-macOS는 서명된 앱만 스스로 교체할 수 있어서, 앱은 실행할 때(그리고 6시간마다) GitHub의 최신 릴리스를 확인해
-새 버전이 있으면 알려주고 이 Mac에 맞는 DMG를 내려받게 해줍니다. 앱 메뉴 › 업데이트 확인…으로 직접 확인할 수도 있습니다.
+
+**자동 업데이트** (`updater.js`): 앱은 실행할 때(그리고 6시간마다) GitHub의 최신 릴리스를 확인하고, 새 버전이 있으면
+창 아래에 알려 줍니다. **업데이트**를 누르면
+1. 이 Mac에 맞는 DMG를 앱 안에서 내려받고(진행률 표시), GitHub가 릴리스 파일마다 공개하는 SHA-256 digest와 대조합니다.
+2. DMG를 읽기 전용으로 마운트해 안의 앱이 Lamplight(같은 번들 ID)이고 기대한 버전인지 확인한 뒤, 지금 앱 옆에 복사해 둡니다.
+3. 앱이 평소처럼 저장하고 종료하면, 작은 스크립트가 두 사본을 바꿔 끼우고(실패하면 원래 앱을 되돌림) 새 버전을 엽니다.
+
+macOS 기본 업데이터(Squirrel)는 서명된 앱만 교체할 수 있어서 직접 구현했어요. DMG에서 바로 실행했거나, 쓰기 권한이 없는 폴더에 있거나,
+릴리스에 digest가 없으면 예전처럼 DMG를 내려받아 직접 설치하게 안내합니다. 앱 메뉴 › 업데이트 확인…으로 직접 확인할 수도 있습니다.
 
 새 버전 내보내기 (빌드 폴더는 `.noindex`로 끝나서 Spotlight·Launchpad에 사본이 나타나지 않습니다):
 
@@ -124,6 +131,7 @@ gh release create v0.1.1 dist.noindex/Lamplight-0.1.1-arm64.dmg dist.noindex/Lam
 main.js            메인 프로세스: 창, 메뉴, 파일 저장, 검색, PDF 내보내기, 업데이트 확인
 ai.js              AI 생성: Claude(API 키) 호출, ChatGPT로 위임
 chatgpt.js         ChatGPT로 로그인(OAuth PKCE, 토큰 갱신) + Responses API 스트리밍
+updater.js         자동 업데이트: DMG 내려받기 · SHA-256 확인 · 종료 후 교체
 preload.js         contextBridge로 노출하는 window.memo API
 src/
   index.html

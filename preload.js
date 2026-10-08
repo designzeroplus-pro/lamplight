@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('memo', {
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   openUpdate: (url) => ipcRenderer.invoke('update:open', url),
   onUpdate: (cb) => ipcRenderer.on('update:available', (_e, info) => cb(info)),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateProgress: (cb) => ipcRenderer.on('update:progress', (_e, p) => cb(p)),
   appVersion: () => ipcRenderer.invoke('app:version'),
   onMenu: (cb) => ipcRenderer.on('menu', (_e, action) => cb(action)),
   closeReady: () => ipcRenderer.send('app:close-ready'),

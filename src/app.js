@@ -1973,14 +1973,37 @@
   }
 
   /* ───────── updates ─────────
-   * A newer GitHub release shows a small pill; "받기" downloads the DMG for
-   * this Mac. Install by opening it and dragging Lamplight onto Applications. */
+   * A newer GitHub release shows a small pill. "업데이트" downloads, checks and
+   * installs it in place, then restarts (main.js › updater.js). Copies that
+   * can't replace themselves get "받기": the DMG to install by hand. */
   let updateInfo = null;
+  let updating = false;
 
   function showUpdate(info) {
+    if (updating) return;
     updateInfo = info;
     $('updateText').textContent = `새 버전 ${info.version}이 나왔어요`;
+    $('updateGet').textContent = info.selfUpdate ? '업데이트' : '받기';
+    $('updateGet').disabled = false;
+    $('updateLater').hidden = false;
     $('updatePill').hidden = false;
+  }
+
+  window.memo.onUpdateProgress((p) => {
+    if (p.phase === 'download') {
+      const pct = p.total ? Math.floor((p.received / p.total) * 100) : 0;
+      $('updateText').textContent = `새 버전을 받는 중… ${pct}%`;
+    } else if (p.phase === 'install') {
+      $('updateText').textContent = '확인하고 설치하는 중…';
+    } else if (p.phase === 'restart') {
+      $('updateText').textContent = '다시 시작하는 중…';
+    }
+  });
+
+  function downloadByHand() {
+    if (updateInfo) window.memo.openUpdate(updateInfo.download);
+    $('updatePill').hidden = true;
+    toast('받은 DMG를 열어 Lamplight를 Applications로 끌어 놓으면 업데이트돼요', 6000);
   }
 
   async function checkUpdateNow() {
@@ -1993,10 +2016,19 @@
   }
 
   window.memo.onUpdate(showUpdate);
-  $('updateGet').addEventListener('click', () => {
-    if (updateInfo) window.memo.openUpdate(updateInfo.download);
+  $('updateGet').addEventListener('click', async () => {
+    if (!updateInfo || updating) return;
+    if (!updateInfo.selfUpdate) { downloadByHand(); return; }
+    updating = true;
+    $('updateGet').disabled = true;
+    $('updateLater').hidden = true;
+    $('updateText').textContent = '새 버전을 받는 중… 0%';
+    const res = await window.memo.installUpdate();
+    if (res?.ok) return; // the app quits and comes back as the new version
+    updating = false;
     $('updatePill').hidden = true;
-    toast('받은 DMG를 열어 Lamplight를 Applications로 끌어 놓으면 업데이트돼요', 6000);
+    toast('자동으로 업데이트하지 못했어요 · 대신 DMG를 열어 드릴게요', 5000);
+    setTimeout(downloadByHand, 1200);
   });
   $('updateLater').addEventListener('click', () => { $('updatePill').hidden = true; });
 
